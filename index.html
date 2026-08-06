@@ -1,0 +1,1467 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GigraWars · Flotten-Kommandozentrale</title>
+<style>
+:root{
+  --bg:#070b12; --bg2:#0c121c; --panel:#111a27; --panel2:#16212f;
+  --line:#1e2c3e; --line2:#2b3d54;
+  --txt:#dbe6f3; --dim:#8296ae; --faint:#5b6c82;
+  --acc:#38bdf8; --acc2:#22d3ee;
+  --ok:#34d399; --warn:#fbbf24; --bad:#fb5c6b; --hot:#f472b6; --own:#60a5fa;
+  --mono:'JetBrains Mono',ui-monospace,'Cascadia Mono',Consolas,monospace;
+  --r:14px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+  background:
+    radial-gradient(1200px 700px at 12% -8%, #16304d 0%, transparent 60%),
+    radial-gradient(900px 600px at 92% 0%, #2a1740 0%, transparent 55%),
+    var(--bg);
+  background-attachment:fixed;
+  color:var(--txt); font-size:15px; line-height:1.5;
+}
+.wrap{max-width:1500px;margin:0 auto;padding:18px 20px 80px}
+h1,h2,h3,h4{margin:0;font-weight:700;letter-spacing:-.01em}
+a{color:var(--acc)}
+button,input,select,textarea{font:inherit;color:inherit}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* ---------- top bar ---------- */
+.topbar{
+  position:sticky;top:0;z-index:60;margin:-18px -20px 18px;padding:12px 20px;
+  background:rgba(7,11,18,.82);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+}
+.brand{display:flex;align-items:center;gap:11px;font-size:17px;font-weight:800}
+.brand .logo{
+  width:32px;height:32px;border-radius:9px;display:grid;place-items:center;font-size:17px;
+  background:linear-gradient(145deg,#0ea5e9,#7c3aed);box-shadow:0 0 22px rgba(56,189,248,.45);
+}
+.brand small{display:block;font-size:10.5px;font-weight:600;color:var(--faint);letter-spacing:.16em;text-transform:uppercase}
+.topbar .spacer{flex:1}
+.clock{
+  font-family:var(--mono);font-size:22px;font-weight:700;color:#fff;letter-spacing:.02em;
+  text-shadow:0 0 18px rgba(56,189,248,.4);
+}
+.clock small{display:block;font-size:10px;letter-spacing:.16em;color:var(--faint);text-align:right;font-weight:700}
+.pill{
+  display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;
+  background:var(--panel);border:1px solid var(--line2);font-size:12.5px;font-weight:600;color:var(--dim);
+}
+.pill .dot{width:8px;height:8px;border-radius:50%;background:var(--faint);box-shadow:0 0 8px currentColor}
+.pill.on{color:var(--ok);border-color:#1c5744}.pill.on .dot{background:var(--ok)}
+.pill.off{color:var(--bad);border-color:#5a2530}.pill.off .dot{background:var(--bad)}
+.pill.wait{color:var(--warn);border-color:#5c451a}.pill.wait .dot{background:var(--warn);animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.25}}
+
+/* ---------- buttons ---------- */
+.btn{
+  background:var(--panel2);border:1px solid var(--line2);border-radius:10px;
+  padding:9px 15px;cursor:pointer;font-weight:600;font-size:14px;transition:.15s;
+  display:inline-flex;align-items:center;gap:8px;
+}
+.btn:hover{background:#1e2c3e;border-color:#3c5271;transform:translateY(-1px)}
+.btn:active{transform:none}
+.btn.primary{background:linear-gradient(135deg,#0284c7,#0ea5e9);border-color:#38bdf8;color:#04121d;box-shadow:0 6px 18px -6px rgba(56,189,248,.7)}
+.btn.primary:hover{background:linear-gradient(135deg,#0ea5e9,#38bdf8)}
+.btn.ghost{background:transparent}
+.btn.sm{padding:6px 11px;font-size:12.5px;border-radius:8px}
+.btn[disabled]{opacity:.45;cursor:not-allowed;transform:none}
+
+/* ---------- panels ---------- */
+.panel{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);border-radius:var(--r);margin-bottom:18px;overflow:hidden}
+.panel > header{display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.015)}
+.panel > header h2{font-size:15px;display:flex;align-items:center;gap:9px}
+.panel > header .spacer{flex:1}
+.panel .body{padding:18px}
+.hint{color:var(--faint);font-size:12.5px}
+
+textarea{
+  width:100%;min-height:180px;resize:vertical;background:#060a11;color:var(--txt);
+  border:1px solid var(--line2);border-radius:10px;padding:13px;font-family:var(--mono);font-size:13px;
+}
+textarea:focus,input:focus,select:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px rgba(56,189,248,.14)}
+input[type=text],input[type=password],input[type=number],select{
+  background:#060a11;border:1px solid var(--line2);border-radius:9px;padding:9px 11px;font-size:14px;
+}
+label.fld{display:flex;flex-direction:column;gap:6px;font-size:11.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.grow{flex:1;min-width:200px}
+.switch{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--dim);cursor:pointer;user-select:none}
+.switch input{accent-color:var(--acc);width:16px;height:16px}
+
+/* ---------- KPI ---------- */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px;margin-bottom:18px}
+.kpi{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);border-radius:var(--r);padding:15px 17px;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;inset:0 0 auto 0;height:3px;background:var(--acc);opacity:.85}
+.kpi.k-bad::before{background:var(--bad)}.kpi.k-warn::before{background:var(--warn)}.kpi.k-ok::before{background:var(--ok)}
+.kpi .lbl{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--faint);font-weight:800}
+.kpi .val{font-family:var(--mono);font-size:31px;font-weight:700;line-height:1.15;margin-top:5px;color:#fff}
+.kpi.k-bad .val{color:var(--bad)}.kpi.k-warn .val{color:var(--warn)}.kpi.k-ok .val{color:var(--ok)}
+.kpi .sub{font-size:12.5px;color:var(--dim);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi.pulse{animation:pulseBad 1.1s infinite}
+@keyframes pulseBad{0%,100%{box-shadow:0 0 0 0 rgba(251,92,107,0)}50%{box-shadow:0 0 26px -4px rgba(251,92,107,.65)}}
+
+/* ---------- planet cards ---------- */
+.planets{display:grid;gap:18px}
+.pcard{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.pcard.threat{border-color:#5a2530;box-shadow:0 0 34px -14px rgba(251,92,107,.6)}
+.pcard.safe{border-color:#1c5744}
+.pcard > header{display:flex;align-items:center;gap:14px;padding:14px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap;background:rgba(255,255,255,.02)}
+.pcard h3{font-size:18px;display:flex;align-items:baseline;gap:10px}
+.pcard h3 .coord{font-family:var(--mono);font-size:13px;color:var(--acc);font-weight:600}
+.tag{padding:3px 10px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border:1px solid}
+.tag.bad{color:var(--bad);border-color:#5a2530;background:rgba(251,92,107,.1)}
+.tag.warn{color:var(--warn);border-color:#5c451a;background:rgba(251,191,36,.1)}
+.tag.ok{color:var(--ok);border-color:#1c5744;background:rgba(52,211,153,.1)}
+.tag.info{color:var(--acc);border-color:#1e4b63;background:rgba(56,189,248,.1)}
+.pbody{padding:16px 18px}
+.grid2{display:grid;grid-template-columns:1.35fr 1fr;gap:18px}
+@media(max-width:1050px){.grid2{grid-template-columns:1fr}}
+
+.section-h{font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--faint);font-weight:800;margin:0 0 9px}
+
+/* timeline (gantt) */
+.gantt{position:relative;height:74px;background:#060a11;border:1px solid var(--line2);border-radius:10px;margin-bottom:8px;overflow:hidden}
+.gantt .axis{position:absolute;left:0;right:0;top:37px;height:1px;background:var(--line2)}
+.gantt .tick{position:absolute;top:44px;font-size:10px;color:var(--faint);transform:translateX(-50%);font-family:var(--mono)}
+.gantt .tick::before{content:'';position:absolute;left:50%;top:-8px;width:1px;height:7px;background:var(--line2)}
+.gantt .ev{position:absolute;top:16px;width:13px;height:13px;border-radius:50%;transform:translate(-50%,0);border:2px solid #060a11;cursor:default;z-index:3}
+.gantt .ev.enemy{background:var(--bad);top:8px;box-shadow:0 0 10px var(--bad)}
+.gantt .ev.own{background:var(--own);top:52px;box-shadow:0 0 10px var(--own)}
+.gantt .ev.spy{background:var(--warn);top:8px;box-shadow:0 0 8px var(--warn)}
+.gantt .now{position:absolute;top:0;bottom:0;width:2px;background:#fff;box-shadow:0 0 10px #fff;z-index:4}
+.gantt .win{position:absolute;top:30px;height:16px;background:rgba(52,211,153,.22);border-left:2px solid var(--ok);border-right:2px solid var(--bad);z-index:2}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--faint)}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+
+/* master timeline (alle Planeten) */
+.mtl{position:relative;background:#060a11;border:1px solid var(--line2);border-radius:10px;padding:6px 0 4px;overflow:hidden}
+.mtl-row{display:grid;grid-template-columns:170px 1fr;align-items:center;min-height:26px}
+.mtl-row + .mtl-row{border-top:1px solid rgba(255,255,255,.04)}
+.mtl-lbl{font-size:12px;font-weight:700;color:var(--dim);padding:0 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mtl-lbl small{display:block;font-family:var(--mono);font-size:10px;color:var(--faint);font-weight:600}
+.mtl-lbl.threat{color:var(--bad)}
+.mtl-track{position:relative;height:26px;margin-right:12px}
+.mtl-track .axis{position:absolute;left:0;right:0;top:13px;height:1px;background:var(--line2)}
+.mtl-track .win{position:absolute;top:6px;height:14px;background:rgba(52,211,153,.22);border-left:2px solid var(--ok);border-right:2px solid var(--bad);border-radius:2px;z-index:2}
+.mtl-track .ev{position:absolute;top:7px;width:12px;height:12px;border-radius:50%;transform:translateX(-50%);border:2px solid #060a11;z-index:3}
+.mtl-track .ev.enemy{background:var(--bad);box-shadow:0 0 9px var(--bad)}
+.mtl-track .ev.own{background:var(--own);box-shadow:0 0 9px var(--own)}
+.mtl-track .ev.spy{background:var(--warn);box-shadow:0 0 8px var(--warn)}
+.mtl-track .now{position:absolute;top:-2px;bottom:-2px;width:2px;background:#fff;box-shadow:0 0 8px #fff;z-index:4}
+.mtl-track .slot{position:absolute;top:0;bottom:0;background:rgba(56,189,248,.10);border-left:1px solid rgba(56,189,248,.5);border-right:1px solid rgba(56,189,248,.5);z-index:1}
+.mtl-axis{height:18px;margin-right:12px;position:relative}
+.mtl-axis .tick{position:absolute;top:2px;font-size:10px;color:var(--faint);transform:translateX(-50%);font-family:var(--mono);white-space:nowrap}
+.mtl-axis .tick::before{content:'';position:absolute;left:50%;top:-6px;width:1px;height:5px;background:var(--line2)}
+
+/* online plan */
+.oplan{display:grid;gap:10px}
+.oslot{background:#0a111b;border:1px solid var(--line2);border-left:3px solid var(--acc);border-radius:10px;padding:11px 13px;display:grid;grid-template-columns:150px 1fr;gap:14px;align-items:start}
+.oslot.p2{border-left-color:var(--bad);background:rgba(251,92,107,.05)}
+.oslot.p1{border-left-color:var(--warn)}
+.oslot.now{box-shadow:0 0 26px -10px var(--ok);border-color:#1c5744}
+.oslot .otime{font-family:var(--mono);font-size:18px;font-weight:700;color:#fff;line-height:1.25}
+.oslot .otime small{display:block;font-size:11px;color:var(--faint);font-weight:600;letter-spacing:.05em;font-family:var(--font,inherit)}
+.oslot .otasks{font-size:13px;color:var(--dim);display:grid;gap:6px}
+.oslot .otasks .t{display:grid;grid-template-columns:84px 1fr;gap:10px;align-items:baseline}
+.oslot .otasks .t .tt{font-family:var(--mono);font-weight:700;color:#fff;font-size:13px}
+.oslot .otasks .t b{color:var(--txt)}
+.obadge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border:1px solid;margin-bottom:6px}
+.obadge.p2{color:var(--bad);border-color:#5a2530;background:rgba(251,92,107,.1)}
+.obadge.p1{color:var(--warn);border-color:#5c451a;background:rgba(251,191,36,.1)}
+.obadge.p0{color:var(--acc);border-color:#1e4b63;background:rgba(56,189,248,.1)}
+@media(max-width:760px){.oslot{grid-template-columns:1fr}.mtl-row{grid-template-columns:110px 1fr}}
+
+/* save windows */
+.win-item{display:flex;gap:12px;align-items:stretch;background:#0a111b;border:1px solid var(--line2);border-left:3px solid var(--ok);border-radius:10px;padding:11px 13px;margin-bottom:9px}
+.win-item.tight{border-left-color:var(--warn)}
+.win-item.none{border-left-color:var(--bad)}
+.win-item .when{font-family:var(--mono);font-size:19px;font-weight:700;color:#fff;min-width:96px}
+.win-item .when small{display:block;font-size:11px;color:var(--faint);font-weight:600;letter-spacing:.06em}
+.win-item .meta{flex:1;font-size:13px;color:var(--dim)}
+.win-item .meta b{color:var(--txt)}
+.win-item .gap{font-family:var(--mono);font-weight:700;font-size:16px;text-align:right;min-width:110px}
+.gap.g-ok{color:var(--ok)}.gap.g-warn{color:var(--warn)}.gap.g-bad{color:var(--bad)}
+
+/* res */
+.res{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.res .r{background:#0a111b;border:1px solid var(--line2);border-radius:9px;padding:9px 11px}
+.res .r .n{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:800}
+.res .r .v{font-family:var(--mono);font-size:16px;font-weight:700;color:#fff}
+.res .r .p{font-size:11.5px;color:var(--dim)}
+.bar{height:4px;background:#1b2635;border-radius:3px;overflow:hidden;margin-top:6px}
+.bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--acc),var(--acc2))}
+
+/* table */
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{padding:9px 11px;text-align:left;border-bottom:1px solid var(--line)}
+th{font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);font-weight:800;position:sticky;top:57px;background:#0d1520;z-index:5}
+tbody tr:hover{background:rgba(56,189,248,.05)}
+tr.r-enemy td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
+tr.r-own td:first-child{box-shadow:inset 3px 0 0 var(--own)}
+tr.r-back td:first-child{box-shadow:inset 3px 0 0 var(--ok)}
+tr.past{opacity:.38}
+td.t{font-family:var(--mono);font-weight:700;color:#fff;white-space:nowrap}
+td.cd{font-family:var(--mono);white-space:nowrap}
+.chips{display:flex;gap:7px;flex-wrap:wrap}
+.chip{padding:5px 11px;border-radius:999px;border:1px solid var(--line2);background:var(--panel2);font-size:12.5px;cursor:pointer;user-select:none;font-weight:600;color:var(--dim)}
+.chip.on{background:rgba(56,189,248,.15);border-color:var(--acc);color:var(--acc)}
+
+.empty{text-align:center;padding:46px 20px;color:var(--faint)}
+.empty .big{font-size:44px;margin-bottom:10px}
+.toast{position:fixed;right:18px;bottom:18px;z-index:200;display:flex;flex-direction:column;gap:9px;align-items:flex-end}
+.toast > div{background:var(--panel2);border:1px solid var(--line2);border-left:3px solid var(--acc);padding:11px 15px;border-radius:10px;font-size:13.5px;box-shadow:0 12px 30px -10px #000;animation:slide .25s}
+.toast > div.bad{border-left-color:var(--bad)} .toast > div.ok{border-left-color:var(--ok)}
+@keyframes slide{from{transform:translateX(30px);opacity:0}}
+details.acc summary{cursor:pointer;list-style:none;padding:8px 0;color:var(--dim);font-size:13px;font-weight:600}
+details.acc summary::-webkit-details-marker{display:none}
+details.acc summary::before{content:'▸ ';color:var(--acc)}
+details.acc[open] summary::before{content:'▾ '}
+.kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+.kv div{background:#0a111b;border:1px solid var(--line2);border-radius:8px;padding:7px 10px;font-size:12.5px;display:flex;justify-content:space-between;gap:8px}
+.kv b{font-family:var(--mono);color:#fff}
+code.k{background:#0a111b;border:1px solid var(--line2);border-radius:6px;padding:2px 6px;font-family:var(--mono);font-size:12px;color:var(--acc2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="topbar">
+  <div class="brand">
+    <div class="logo">🛰️</div>
+    <div>GigraWars<small>Flotten-Kommandozentrale</small></div>
+  </div>
+  <div class="spacer"></div>
+  <span class="pill" id="apiPill"><span class="dot"></span><span id="apiPillTxt">API nicht verbunden</span></span>
+  <span class="pill" id="ratePill" hidden><span class="dot"></span><span id="ratePillTxt">–</span></span>
+  <label class="switch" title="Visueller Alarm (Toast + Desktop-Benachrichtigung) vor Einschlägen">
+    <input type="checkbox" id="alarmOn" checked> Alarm
+  </label>
+  <div class="clock"><span id="clock">--:--:--</span><small id="clockSrc">lokale zeit</small></div>
+</div>
+
+<!-- ============ EINGABE ============ -->
+<div class="panel">
+  <header>
+    <h2>📥 Flottenübersicht einfügen</h2>
+    <span class="hint" id="parseInfo"></span>
+    <div class="spacer"></div>
+    <button class="btn sm ghost" id="btnDemo">Beispiel laden</button>
+    <button class="btn sm ghost" id="btnClear">Leeren</button>
+    <button class="btn sm ghost" id="btnToggleIn">Einklappen</button>
+  </header>
+  <div class="body" id="inputBody">
+    <p class="hint" style="margin:0 0 10px">
+      Markiere im Spiel die Flottenansicht (inkl. der Kopfzeile <code class="k">Nachrichten HH:MM:SS - TT.MM.JJJJ</code>) und füge sie hier ein.
+      Auswertung mit <code class="k">Strg</code>+<code class="k">Enter</code>. Eingabe wird lokal gespeichert.
+    </p>
+    <textarea id="inputData" spellcheck="false" placeholder="Nachrichten 09:48:23 - 05.08.2026
+Fremde feindliche Flotten (6)
+00:12:34
+Angriff
+13:44:2
+12:101:5
+..."></textarea>
+    <div class="row" style="margin-top:12px">
+      <label class="fld">Server-Uhrzeit manuell
+        <input type="text" id="refTimeInput" placeholder="09:48:23" style="width:130px" class="mono">
+      </label>
+      <label class="fld">Snapshot-Alter
+        <select id="ageMode">
+          <option value="auto">automatisch (Serverzeit)</option>
+          <option value="zero">frisch (0 s)</option>
+        </select>
+      </label>
+      <label class="fld">Plünder-Anteil
+        <select id="plunderShare">
+          <option value="0.5" selected>50 %</option>
+          <option value="0.25">25 %</option>
+          <option value="0.75">75 %</option>
+          <option value="1">100 %</option>
+        </select>
+      </label>
+      <div class="grow"></div>
+      <button class="btn primary" id="btnAnalyze">⚡ Auswerten</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ API ============ -->
+<div class="panel">
+  <header>
+    <h2>🔌 GigraWars API</h2>
+    <div class="spacer"></div>
+    <button class="btn sm ghost" id="btnApiToggle">Einstellungen</button>
+    <button class="btn sm" id="btnApiLoad">🔄 Daten laden</button>
+  </header>
+  <div class="body" id="apiBody" hidden>
+    <div class="row">
+      <label class="fld grow">API-Token (x-auth-token)
+        <input type="password" id="tokenInput" placeholder="uni5-…" autocomplete="off">
+      </label>
+      <label class="fld">Universum
+        <input type="text" id="uniInput" style="width:110px" placeholder="uni5">
+      </label>
+      <label class="fld grow">Verbindung
+        <select id="modeSel">
+          <option value="auto">automatisch (Proxy → direkt)</option>
+          <option value="proxy">nur lokaler Proxy</option>
+          <option value="direct">nur direkt (benötigt CORS)</option>
+        </select>
+      </label>
+      <label class="switch" style="padding-bottom:9px"><input type="checkbox" id="autoRefresh"> alle 5 min neu laden</label>
+    </div>
+    <p class="hint" style="margin:12px 0 0">
+      Trage <b>API-Token</b> und <b>Universum</b> ein – die Daten werden im Modus <code class="k">automatisch</code> bzw.
+      <code class="k">direkt</code> per HTTPS direkt gegen die GigraWars-API geladen (die API sendet CORS-Header).
+      Token &amp; Einstellungen bleiben ausschließlich lokal in deinem Browser (<code class="k">localStorage</code>) und werden nirgends hochgeladen.
+      <br>Nur wenn du die Seite lokal per <code class="k">file://</code> öffnest, brauchst du den Proxy
+      (<code class="k">START.cmd</code> / <a href="http://localhost:8787" target="_blank">localhost:8787</a>).
+    </p>
+    <div id="apiSummary" style="margin-top:14px"></div>
+  </div>
+</div>
+
+<div id="kpis" class="kpis"></div>
+<div id="masterWrap"></div>
+<div id="planets" class="planets"></div>
+<div id="tableWrap"></div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ============================================================================
+   GigraWars Flotten-Kommandozentrale
+   - Parser fuer die eingefuegte Flottenuebersicht
+   - Live-Countdowns gegen die echte Serverzeit
+   - Save-Fenster-Berechnung je Planet
+   - Anbindung der offiziellen GigraWars-API (Account / Planeten / Kampfbilanz)
+   ========================================================================== */
+
+/* ---------- Konstanten ---------- */
+const RES = {
+  iron:      {de:'Eisen',       icon:'⛏️'},
+  lutinum:   {de:'Lutinum',     icon:'💠'},
+  water:     {de:'Wasser',      icon:'💧'},
+  hydrogen:  {de:'Wasserstoff', icon:'🔥'},
+};
+const SHIPS = {
+  schakal:'Schakal', recycler:'Recycler', spySatellite:'Spionagesatellit', renegade:'Renegade',
+  raider:'Raider', falcon:'Falcon', colonisationShip:'Kolonieschiff', tjuger:'Tjuger',
+  cougar:'Cougar', longeagleV:'Longeagle V', smallTrader:'Kleiner Händler',
+  largeTrader:'Großer Händler', noah:'Noah', longeagleX:'Longeagle X',
+};
+const RESEARCH = {
+  combustionDrive:'Verbrennungsantrieb', ionDrive:'Ionenantrieb',
+  spaceCurvatureDrive:'Raumkrümmungsantrieb', spaceFoldingDrive:'Raumfaltungsantrieb',
+  ionisation:'Ionisation', energyBundling:'Energiebündelung',
+  explosiveProjectiles:'Explosivgeschosse', spyTechnology:'Spionagetechnik',
+  extendedShipArmour:'Erweiterte Schiffspanzerung', increasedCargoCapacity:'Erhöhte Ladekapazität',
+  recyclingTechnology:'Recyclingtechnologie',
+};
+const BUILDINGS = {
+  commandCenter:'Kommandozentrale', researchCenter:'Forschungszentrum', tradingPost:'Handelsposten',
+  ironMine:'Eisenmine', lutinumRefinery:'Lutinum-Raffinerie', drillingTower:'Bohrturm',
+  chemicalFactory:'Chemiefabrik', extendedChemicalFactory:'Erw. Chemiefabrik',
+  ironStorage:'Eisenlager', lutinumStorage:'Lutinumlager', waterStorage:'Wasserlager',
+  hydrogenStorage:'Wasserstofflager', shipFactory:'Schiffsfabrik',
+  orbitalDefenceStation:'Orbitale Verteidigung', planetaryShield:'Planetenschild', fusionReactor:'Fusionsreaktor',
+};
+
+/* Missionen: Erkennung + Klassifizierung */
+const MISSIONS = [
+  {re:/angriff|attack/i,                 key:'Angriff',       icon:'⚔️', hostile:true},
+  {re:/zerst[öo]r/i,                     key:'Zerstören',     icon:'💥', hostile:true},
+  {re:/spionage|spion/i,                 key:'Spionage',      icon:'🔍', hostile:false, spy:true},
+  {re:/stationier/i,                     key:'Stationierung', icon:'🛡️', hostile:false},
+  {re:/transport/i,                      key:'Transport',     icon:'📦', hostile:false},
+  {re:/sammeln|recycl|tr[üu]mmer/i,      key:'Sammeln',       icon:'♻️', hostile:false},
+  {re:/kolonis/i,                        key:'Kolonisieren',  icon:'🌱', hostile:false},
+  {re:/verb[üu]nde|unterst[üu]tz|halten/i,key:'Unterstützung',icon:'🤝', hostile:false},
+  {re:/r[üu]ckflug|zur[üu]ck/i,          key:'Rückflug',      icon:'↩️', hostile:false},
+];
+function classifyMission(raw){
+  const t = (raw||'').trim();
+  for(const m of MISSIONS) if(m.re.test(t)) return {...m, raw:t};
+  return {key:t||'Unbekannt', icon:'❔', hostile:false, raw:t};
+}
+
+/* ---------- State ---------- */
+const S = {
+  events:[],            // geparste Flottenbewegungen
+  planets:new Map(),     // coord -> API-Planetendaten
+  account:null,
+  balance:null,
+  serverOffset:0,        // Serverzeit(ms) - lokale Zeit(ms)
+  clockSrc:'lokal',
+  snapshotAt:null,       // Serverzeit des eingefuegten Snapshots (ms)
+  apiBase:null,
+  rate:null,
+  filters:new Set(['fremd','hin','rueck']),
+  alarmed:new Set(),
+  analysis:[],
+};
+
+const $  = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const LS = {
+  get:(k,d)=>{ try{ const v=localStorage.getItem('gw_'+k); return v===null?d:JSON.parse(v);}catch{ return d; } },
+  set:(k,v)=>{ try{ localStorage.setItem('gw_'+k, JSON.stringify(v)); }catch{} },
+};
+
+/* ---------- Helpers ---------- */
+const pad = n => String(n).padStart(2,'0');
+const serverNow = () => Date.now() + S.serverOffset;
+
+function hhmmss(ms){
+  const d = new Date(ms);
+  return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+}
+function hhmm(ms){
+  const d = new Date(ms);
+  return pad(d.getHours())+':'+pad(d.getMinutes());
+}
+function dur(sec){
+  sec = Math.round(sec);
+  const neg = sec < 0; sec = Math.abs(sec);
+  const h = Math.floor(sec/3600), m = Math.floor(sec%3600/60), s = sec%60;
+  const out = h>0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+  return (neg?'-':'')+out;
+}
+function durLong(sec){
+  sec = Math.max(0, Math.round(sec));
+  const h=Math.floor(sec/3600), m=Math.floor(sec%3600/60), s=sec%60;
+  if(h) return `${h} h ${m} min`;
+  if(m) return `${m} min ${s} s`;
+  return `${s} s`;
+}
+const nf = new Intl.NumberFormat('de-DE');
+const num = n => nf.format(Math.round(n||0));
+function short(n){
+  n = Math.round(n||0);
+  if(n >= 1e9) return (n/1e9).toFixed(2)+' Mrd';
+  if(n >= 1e6) return (n/1e6).toFixed(2)+' Mio';
+  if(n >= 1e4) return (n/1e3).toFixed(0)+' k';
+  return nf.format(n);
+}
+const esc = s => String(s??'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function toast(msg, kind=''){
+  const el = document.createElement('div');
+  el.className = kind; el.innerHTML = msg;
+  $('#toast').appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transition='.3s'; setTimeout(()=>el.remove(),300); }, 4200);
+}
+
+/* ============================================================================
+   PARSER
+   ========================================================================== */
+const RE_COORD = /^\[?(\d{1,3}):(\d{1,3}):(\d{1,2})\]?$/;
+const RE_TIME  = /^(\d{1,2}):([0-5]\d):([0-5]\d)$/;
+
+function parseInput(text, manualRef){
+  const lines = text.split(/\r?\n/).map(l => l.replace(/\u00a0/g,' ').trim());
+
+  /* Überschriften nur erkennen, wenn die Zeile wirklich wie ein Header aussieht
+     ("… Flotten …" oder mit Anzahl in Klammern). Sonst würde z. B. die
+     Auftragszeile "Rückflug" innerhalb eines Blocks als Sektion missverstanden. */
+  const SECTIONS = [
+    {re:/fremde|feindlich/i,      key:'fremd'},
+    {re:/r[üu]ckflug|zur[üu]ck/i, key:'rueck'},
+    {re:/hinflug|hin\b/i,         key:'hin'},
+    {re:/eigene/i,                key:'hin'},
+  ];
+  const headerOf = l => (!RE_TIME.test(l) && !RE_COORD.test(l) &&
+      (/flott/i.test(l) || /\(\s*\d+\s*\)\s*$/.test(l)))
+    ? SECTIONS.find(s => s.re.test(l)) : undefined;
+
+  let firstHeader = lines.findIndex(l => l && headerOf(l));
+  if(firstHeader === -1) firstHeader = lines.length;
+
+  /* -- Snapshot-Zeitpunkt (Serverzeit des Kopiervorgangs) -- */
+  let refSec = null, refDate = null;
+  if(manualRef){
+    const m = RE_TIME.exec(manualRef.trim());
+    if(m) refSec = +m[1]*3600 + +m[2]*60 + +m[3];
+  }
+  for(let i=0; i<Math.min(12, lines.length); i++){
+    const l = lines[i];
+    const md = /(\d{1,2})\.(\d{1,2})\.(\d{4})/.exec(l);
+    const mt = /(?:Nachrichten\s*)?\b(\d{1,2}):([0-5]\d):([0-5]\d)\b/.exec(l);
+    if(mt && (/nachricht/i.test(l) || md)){
+      if(refSec === null) refSec = +mt[1]*3600 + +mt[2]*60 + +mt[3];
+      if(md) refDate = {d:+md[1], m:+md[2], y:+md[3]};
+      break;
+    }
+  }
+  // Fallback: nackte Uhrzeit, aber nur oberhalb der ersten Sektionsüberschrift,
+  // damit kein Countdown aus einem Flottenblock als Serverzeit gilt.
+  if(refSec === null){
+    for(let i=0; i<Math.min(firstHeader, lines.length); i++){
+      const mt = RE_TIME.exec(lines[i]);
+      if(mt){ refSec = +mt[1]*3600 + +mt[2]*60 + +mt[3]; break; }
+    }
+  }
+
+  /* -- Blöcke -- */
+  const blocks = [];
+  let section = '', cur = null;
+
+  /* Eine Missions-Textzeile ist weder Koordinate noch Uhrzeit noch Header noch
+     reine Zahl. Ein echter Countdown wird IMMER direkt von so einer Textzeile
+     gefolgt; eine Koordinate dagegen nie. Damit lassen sich Koordinaten wie
+     "12:44:20", die zufällig auch als Uhrzeit (12:44:20) durchgehen, sicher von
+     einem neuen Flottenblock unterscheiden. */
+  const isMissionText = l => !!l && !RE_COORD.test(l) && !RE_TIME.test(l) &&
+    !headerOf(l) && !/^[\d.,\s%+-]*$/.test(l);
+  const startsEntry = i => {
+    for(let j = i + 1; j < lines.length; j++){
+      if(!lines[j]) continue;
+      return isMissionText(lines[j]);
+    }
+    return false;
+  };
+
+  for(let i = 0; i < lines.length; i++){
+    const line = lines[i];
+    if(!line) continue;
+    const sec = headerOf(line);
+    if(sec){ section = sec.key; if(cur){ blocks.push(cur); cur = null; } continue; }
+    const mt = RE_TIME.exec(line);
+    if(mt && section && startsEntry(i)){
+      if(cur) blocks.push(cur);
+      cur = {section, sec:+mt[1]*3600 + +mt[2]*60 + +mt[3], countdown:line, lines:[]};
+      continue;
+    }
+    if(cur) cur.lines.push(line);
+  }
+  if(cur) blocks.push(cur);
+
+  /* -- Blöcke zu Events -- */
+  const events = [];
+  for(const b of blocks){
+    const coords = [], texts = [];
+    for(const l of b.lines){
+      const c = RE_COORD.exec(l);
+      if(c) coords.push(`${+c[1]}:${+c[2]}:${+c[3]}`);
+      else if(!/^[\d.,\s%+-]*$/.test(l)) texts.push(l);
+    }
+    if(!coords.length) continue;
+    const mission = classifyMission(texts[0] || (b.section === 'rueck' ? 'Rückflug' : ''));
+    const player  = texts.slice(1).find(t => t.length > 1 && !/^\(|\)$/.test(t)) || '';
+    const [c1, c2] = [coords[0], coords[1] || coords[0]];
+    const {start, ziel} = resolveRoute(b.section, c1, c2);
+    events.push({
+      section:b.section, countdown:b.countdown, offsetSec:b.sec,
+      mission:mission.key, icon:mission.icon, hostile:b.section==='fremd' && mission.hostile,
+      spy: !!mission.spy && b.section==='fremd',
+      own: b.section!=='fremd', start, ziel, player,
+      owner: b.section==='fremd' ? 'Feind' : (b.section==='rueck' ? 'Eigene · Rückflug' : 'Eigene · Hinflug'),
+    });
+  }
+  events.sort((a,b) => a.offsetSec - b.offsetSec);
+  return {events, refSec, refDate};
+}
+
+/** Start/Ziel bestimmen – nutzt die eigenen Planeten aus der API, wenn vorhanden. */
+function resolveRoute(section, c1, c2){
+  const mine = c => S.planets.has(c);
+  if(section === 'fremd'){
+    if(mine(c2) && !mine(c1)) return {start:c1, ziel:c2};
+    if(mine(c1) && !mine(c2)) return {start:c2, ziel:c1};
+    return {start:c1, ziel:c2};
+  }
+  if(section === 'rueck'){
+    if(mine(c1) && !mine(c2)) return {start:c2, ziel:c1};
+    if(mine(c2) && !mine(c1)) return {start:c1, ziel:c2};
+    return {start:c2, ziel:c1};
+  }
+  return {start:c1, ziel:c2};
+}
+
+/* ============================================================================
+   ANALYSE
+   ========================================================================== */
+function analyze(){
+  const text = $('#inputData').value;
+  LS.set('input', text);
+  LS.set('refTime', $('#refTimeInput').value);
+
+  const {events, refSec, refDate} = parseInput(text, $('#refTimeInput').value);
+
+  /* Snapshot-Zeitpunkt als absolute Serverzeit bestimmen */
+  let snap;
+  if(refSec === null){
+    snap = serverNow();
+    $('#parseInfo').innerHTML = '<span style="color:var(--warn)">⚠ keine Serverzeit erkannt – nutze aktuelle Uhr</span>';
+  } else {
+    const now = new Date(serverNow());
+    if(refDate) snap = new Date(refDate.y, refDate.m-1, refDate.d, 0,0,0,0).getTime() + refSec*1000;
+    else {
+      snap = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() + refSec*1000;
+      // Wenn der Snapshot "in der Zukunft" liegt, stammt er wohl von gestern
+      if(snap - serverNow() > 6*3600e3) snap -= 86400e3;
+    }
+    if($('#ageMode').value === 'zero') snap = serverNow();
+    const age = (serverNow() - snap)/1000;
+    $('#parseInfo').innerHTML =
+      `Snapshot ${hhmmss(snap)} · Alter ${age < 0 ? '0 s' : durLong(age)} · ${events.length} Flotten`;
+  }
+  S.snapshotAt = snap;
+  S.events = events.map(e => ({...e, at: snap + e.offsetSec*1000}));
+  S.alarmed.clear();
+
+  buildAnalysis();
+  render();
+  if(S.events.length) toast(`✅ ${S.events.length} Flottenbewegungen ausgewertet`, 'ok');
+}
+
+/** Pro Ziel-Planet: Bedrohungen, ankommende eigene Flotten, Save-Fenster. */
+function buildAnalysis(){
+  const byPlanet = new Map();
+  for(const e of S.events){
+    if(!byPlanet.has(e.ziel)) byPlanet.set(e.ziel, []);
+    byPlanet.get(e.ziel).push(e);
+  }
+  const out = [];
+  for(const [coord, evs] of byPlanet){
+    evs.sort((a,b) => a.at - b.at);
+    const attacks  = evs.filter(e => e.hostile);
+    const spies    = evs.filter(e => e.spy);
+    const arrivals = evs.filter(e => e.own);
+    const windows  = [];
+
+    for(const a of arrivals){
+      const next = attacks.find(x => x.at > a.at);
+      const prev = [...attacks].reverse().find(x => x.at <= a.at);
+      windows.push({
+        arrival:a,
+        nextAttack:next || null,
+        prevAttack:prev || null,
+        gapSec: next ? (next.at - a.at)/1000 : null,
+        tooLate: !next && !!prev,
+      });
+    }
+    windows.sort((x,y) => x.arrival.at - y.arrival.at);
+
+    out.push({
+      coord,
+      api: S.planets.get(coord) || null,
+      name: (S.planets.get(coord)||{}).name || null,
+      mine: S.planets.has(coord),
+      events: evs, attacks, spies, arrivals, windows,
+      firstAttack: attacks[0] || null,
+      lastAttack: attacks.length ? attacks[attacks.length-1] : null,
+    });
+  }
+  // Planeten mit Angriffen zuerst, danach nach naechstem Ereignis
+  out.sort((a,b) => {
+    const av = a.attacks.length ? 0 : 1, bv = b.attacks.length ? 0 : 1;
+    if(av !== bv) return av - bv;
+    return (a.events[0]?.at||0) - (b.events[0]?.at||0);
+  });
+  S.analysis = out;
+}
+
+/** Ressourcenprojektion auf einen Zeitpunkt (Produktion pro Stunde, Lager gedeckelt). */
+function projectResources(api, atMs){
+  if(!api || !api.resourceStack) return null;
+  const rs = api.resourceStack;
+  const hours = Math.max(0, (atMs - (api._fetchedAt || serverNow()))/3600e3);
+  const prod = {
+    iron: rs.ironProduction||0,
+    lutinum: rs.lutinumProduction||0,
+    water: (rs.waterProduction||0) - (rs.waterUsage||0),
+    hydrogen: rs.hydrogenProduction||0,
+  };
+  const cap = {iron:rs.ironStorage, lutinum:rs.lutinumStorage, water:rs.waterStorage, hydrogen:rs.hydrogenStorage};
+  const res = {};
+  for(const k of Object.keys(RES)){
+    const v = (rs[k]||0) + prod[k]*hours;
+    res[k] = {val: Math.max(0, cap[k] ? Math.min(v, cap[k]) : v), cap: cap[k]||0, prod: prod[k]};
+  }
+  return res;
+}
+
+/* ============================================================================
+   RENDERING
+   ========================================================================== */
+function render(){
+  renderKpis();
+  renderMaster();
+  renderPlanets();
+  renderTable();
+  tick();
+}
+
+/* ============================================================================
+   MASTER-ZEITACHSE + ONLINE-PLAN
+   ========================================================================== */
+
+const LEAD_MS   = 5*60e3;   // so lange vor einem Einschlag online sein
+const MERGE_MS  = 10*60e3;  // Blöcke, die dichter beieinander liegen, verschmelzen
+const MINLEN_MS = 60e3;     // Mindestlänge eines Online-Blocks
+
+/** Alle To-dos in der Zukunft -> zu Online-Blöcken zusammengefasst. */
+function onlineSlots(){
+  const now = serverNow();
+  const tasks = [];
+
+  for(const p of S.analysis){
+    const label = planetLabel(p.coord);
+    const done = new Set();
+
+    for(const w of p.windows){
+      const a = w.arrival;
+      if(a.at < now - 30e3) continue;
+      if(w.nextAttack){
+        done.add(a.at);
+        const g = w.gapSec;
+        tasks.push({
+          at: a.at, from: a.at, to: w.nextAttack.at,
+          prio: g < 600 ? 2 : 1, planet: label,
+          text: `<b>${esc(label)}</b> – ${a.icon} ${esc(a.mission)} landet, Flotte sofort wieder wegschicken. `
+              + `Fenster <b>${durLong(g)}</b>, Deadline <b>${hhmmss(w.nextAttack.at)}</b>.`
+        });
+      }
+    }
+
+    for(const atk of p.attacks){
+      if(atk.at < now) continue;
+      tasks.push({
+        at: atk.at, from: atk.at - LEAD_MS, to: atk.at,
+        prio: 2, planet: label,
+        text: `<b>${esc(label)}</b> – ${atk.icon} <b>${esc(atk.mission)}</b> von ${esc(atk.owner)} schlägt ein `
+            + `(${hhmmss(atk.at)}). Rohstoffe/Flotten vorher wegschaffen.`
+      });
+    }
+
+    for(const s of p.spies){
+      if(s.at < now) continue;
+      tasks.push({
+        at: s.at, from: s.at - 60e3, to: s.at, prio: 0, planet: label,
+        text: `<b>${esc(label)}</b> – 🔍 Spionage um ${hhmmss(s.at)}, meist Vorbote eines Angriffs.`
+      });
+    }
+
+    for(const a of p.arrivals){
+      if(a.at < now || done.has(a.at)) continue;
+      tasks.push({
+        at: a.at, from: a.at, to: a.at + 60e3, prio: 0, planet: label,
+        text: `<b>${esc(label)}</b> – ${a.icon} ${esc(a.mission)} landet, kein Angriff danach. Flotte frei verplanbar.`
+      });
+    }
+  }
+
+  tasks.sort((x,y) => x.from - y.from || x.at - y.at);
+
+  const slots = [];
+  for(const t of tasks){
+    const cur = slots[slots.length-1];
+    if(cur && t.from <= cur.to + MERGE_MS){
+      cur.to = Math.max(cur.to, t.to);
+      cur.prio = Math.max(cur.prio, t.prio);
+      cur.tasks.push(t);
+    } else {
+      slots.push({from: t.from, to: Math.max(t.to, t.from + MINLEN_MS), prio: t.prio, tasks: [t]});
+    }
+  }
+  for(const s of slots){
+    if(s.to - s.from < MINLEN_MS) s.to = s.from + MINLEN_MS;
+    s.tasks.sort((a,b) => a.at - b.at);
+  }
+  return slots;
+}
+
+function renderMaster(){
+  const el = $('#masterWrap');
+  S._masterAt = serverNow();
+  if(!S.events.length){ el.innerHTML=''; return; }
+  const now = serverNow();
+  const slots = onlineSlots();
+
+  el.innerHTML = `
+  <div class="panel">
+    <header>
+      <h2>🧭 Master-Zeitachse &amp; Online-Plan</h2>
+      <span class="hint">alle Planeten auf einer Achse – blau hinterlegt = online sein</span>
+      <div class="spacer"></div>
+      <button class="btn sm ghost" id="btnCopyPlan">📋 Online-Plan kopieren</button>
+    </header>
+    <div class="body">
+      ${masterGantt(slots)}
+      <div class="legend" style="margin:8px 0 18px">
+        <span><i style="background:var(--bad)"></i>Feindangriff</span>
+        <span><i style="background:var(--warn)"></i>Spionage</span>
+        <span><i style="background:var(--own)"></i>Eigene Landung</span>
+        <span><i style="background:rgba(52,211,153,.5)"></i>Save-Fenster</span>
+        <span><i style="background:rgba(56,189,248,.35)"></i>Online-Block</span>
+        <span><i style="background:#fff"></i>jetzt</span>
+      </div>
+      <div class="section-h">Wann muss ich online sein?</div>
+      ${renderOnlinePlan(slots, now)}
+    </div>
+  </div>`;
+
+  const cp = $('#btnCopyPlan');
+  if(cp) cp.onclick = () => copyPlan(slots);
+}
+
+/** Gemeinsame Achse: eine Spur pro Planet. */
+function masterGantt(slots){
+  const now = serverNow();
+  const times = S.events.map(e => e.at);
+  let from = Math.min(now, ...times) - 120e3;
+  let to   = Math.max(now, ...times) + 120e3;
+  if(to - from < 600e3) to = from + 600e3;
+  const span = to - from;
+  const pct = t => (Math.max(0, Math.min(1, (t-from)/span))*100).toFixed(3);
+  const wide = (a,b) => `left:${pct(a)}%;width:${Math.max(0, (Math.min(b,to)-Math.max(a,from))/span*100).toFixed(3)}%`;
+
+  const slotHtml = slots.map(s =>
+    `<div class="slot" style="${wide(s.from, s.to)}" title="Online ${hhmmss(s.from)} – ${hhmmss(s.to)}"></div>`).join('');
+
+  const rows = S.analysis.map(p => {
+    const threat = p.attacks.some(a => a.at > now);
+    let track = '<div class="axis"></div>' + slotHtml;
+    for(const w of p.windows){
+      if(w.nextAttack) track += `<div class="win" style="${wide(w.arrival.at, w.nextAttack.at)}" title="Save-Fenster ${durLong(w.gapSec)}"></div>`;
+    }
+    for(const e of p.events){
+      const k = e.hostile ? 'enemy' : (e.spy ? 'spy' : 'own');
+      const past = e.at < now ? 'opacity:.35;' : '';
+      track += `<div class="ev ${k}" style="${past}left:${pct(e.at)}%" title="${esc(e.mission)} · ${hhmmss(e.at)} · ${esc(e.start)} ➜ ${esc(e.ziel)}"></div>`;
+    }
+    track += `<div class="now" data-now style="left:${pct(now)}%"></div>`;
+    const nm = S.planets.get(p.coord);
+    return `<div class="mtl-row">
+      <div class="mtl-lbl ${threat?'threat':''}" title="${esc(planetLabel(p.coord))}">
+        ${threat?'⚔️ ':''}${esc(nm ? nm.name : p.coord)}<small>${esc(p.coord)}</small>
+      </div>
+      <div class="mtl-track" data-tl data-from="${from}" data-to="${to}">${track}</div>
+    </div>`;
+  }).join('');
+
+  const steps = 8;
+  let ticks = '';
+  for(let i=0;i<=steps;i++){
+    const t = from + span*i/steps;
+    ticks += `<div class="tick" style="left:${(i/steps*100).toFixed(2)}%">${hhmm(t)}</div>`;
+  }
+
+  return `<div class="mtl">${rows}
+    <div class="mtl-row"><div class="mtl-lbl"></div><div class="mtl-axis">${ticks}</div></div>
+  </div>`;
+}
+
+function renderOnlinePlan(slots, now){
+  if(!slots.length) return '<p class="hint">Nichts mehr zu tun – keine anstehenden Ereignisse. ✅</p>';
+
+  const PRIO = [
+    {c:'p0', t:'Optional'},
+    {c:'p1', t:'Wichtig'},
+    {c:'p2', t:'Pflicht'},
+  ];
+  return '<div class="oplan">' + slots.map(s => {
+    const active = now >= s.from && now <= s.to;
+    const pr = PRIO[s.prio];
+    const head = active
+      ? `<small style="color:var(--ok)">JETZT – noch <span data-cd="${s.to}">–</span></small>`
+      : `<small>in <span data-cd="${s.from}">–</span></small>`;
+    return `<div class="oslot ${pr.c} ${active?'now':''}">
+      <div class="otime">${hhmmss(s.from)}<span style="color:var(--faint)"> – </span>${hhmmss(s.to)}
+        ${head}
+        <small style="color:var(--faint)">Dauer ${durLong((s.to-s.from)/1000)}</small>
+      </div>
+      <div>
+        <span class="obadge ${pr.c}">${pr.t}</span>
+        <div class="otasks">${s.tasks.map(t =>
+          `<div class="t"><span class="tt">${hhmmss(t.at)}</span><span>${t.text}</span></div>`).join('')}</div>
+      </div>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+function copyPlan(slots){
+  const L = [`ONLINE-PLAN · Stand ${hhmmss(serverNow())}`, ''];
+  if(!slots.length) L.push('Nichts zu tun.');
+  for(const s of slots){
+    L.push(`${hhmmss(s.from)} – ${hhmmss(s.to)}  (${['optional','wichtig','PFLICHT'][s.prio]})`);
+    for(const t of s.tasks) L.push(`   ${hhmmss(t.at)}  ${t.text.replace(/<[^>]+>/g,'')}`);
+    L.push('');
+  }
+  navigator.clipboard.writeText(L.join('\n'))
+    .then(() => toast('📋 Online-Plan kopiert', 'ok'))
+    .catch(() => toast('Kopieren fehlgeschlagen', 'bad'));
+}
+
+function renderKpis(){
+  const el = $('#kpis');
+  if(!S.events.length){ el.innerHTML=''; return; }
+  const now = serverNow();
+  const attacks = S.events.filter(e => e.hostile && e.at > now).sort((a,b)=>a.at-b.at);
+  const nextAtk = attacks[0];
+  const threatened = S.analysis.filter(p => p.attacks.some(a => a.at > now));
+  const ownIncoming = S.events.filter(e => e.own && e.at > now);
+  const nextOwn = ownIncoming.sort((a,b)=>a.at-b.at)[0];
+
+  // Ressourcen im Feuer (auf allen bedrohten Planeten zum jeweils ersten Angriff)
+  let atRisk = 0, haveRes = false;
+  for(const p of threatened){
+    const a = p.attacks.find(x => x.at > now);
+    const proj = projectResources(p.api, a.at);
+    if(proj){ haveRes = true; for(const k of Object.keys(RES)) atRisk += proj[k].val; }
+  }
+  const share = parseFloat($('#plunderShare').value);
+
+  const cards = [];
+  cards.push(nextAtk
+    ? {cls:'k-bad pulse', lbl:'Nächster Einschlag', val:`<span data-cd="${nextAtk.at}">–</span>`,
+       sub:`${nextAtk.icon} ${esc(nextAtk.mission)} auf ${esc(planetLabel(nextAtk.ziel))} · ${hhmmss(nextAtk.at)}`}
+    : {cls:'k-ok', lbl:'Nächster Einschlag', val:'—', sub:'Keine feindlichen Angriffe im Anflug'});
+
+  cards.push({cls: threatened.length ? 'k-bad':'k-ok', lbl:'Bedrohte Planeten',
+    val:String(threatened.length),
+    sub: threatened.length ? threatened.map(p=>planetLabel(p.coord)).join(', ') : 'Alles ruhig'});
+
+  const savable = S.analysis.flatMap(p=>p.windows).filter(w => w.nextAttack && w.arrival.at > now);
+  cards.push({cls: savable.length ? 'k-warn':'', lbl:'Save-Aktionen offen', val:String(savable.length),
+    sub: savable.length ? `engstes Fenster ${durLong(Math.min(...savable.map(w=>w.gapSec)))}` : 'nichts zu retten'});
+
+  cards.push({cls:'', lbl:'Eigene Flotten unterwegs', val:String(ownIncoming.length),
+    sub: nextOwn ? `nächste Landung ${hhmmss(nextOwn.at)} · ${esc(planetLabel(nextOwn.ziel))}` : '–'});
+
+  if(haveRes) cards.push({cls:'k-warn', lbl:'Rohstoffe im Feuer', val:short(atRisk),
+    sub:`≈ ${short(atRisk*share)} plünderbar (${Math.round(share*100)} %)`});
+
+  el.innerHTML = cards.map(c => `
+    <div class="kpi ${c.cls}">
+      <div class="lbl">${c.lbl}</div>
+      <div class="val mono">${c.val}</div>
+      <div class="sub">${c.sub}</div>
+    </div>`).join('');
+}
+
+function planetLabel(coord){
+  const p = S.planets.get(coord);
+  return p ? `${p.name} [${coord}]` : coord;
+}
+
+function renderPlanets(){
+  const el = $('#planets');
+  if(!S.events.length){
+    el.innerHTML = `<div class="panel"><div class="empty">
+      <div class="big">🛰️</div>
+      <h3>Noch keine Daten</h3>
+      <p class="hint">Flottenübersicht oben einfügen und auf „Auswerten“ klicken.<br>
+      Optional die API verbinden, damit Planetennamen, Rohstoffe und Verteidigung angezeigt werden.</p>
+    </div></div>`;
+    return;
+  }
+
+  el.innerHTML = S.analysis.map(p => {
+    const now = serverNow();
+    const liveAttacks = p.attacks.filter(a => a.at > now);
+    const threat = liveAttacks.length > 0;
+    const spyOnly = !threat && p.spies.some(s => s.at > now);
+    const cls = threat ? 'threat' : (p.attacks.length ? '' : 'safe');
+
+    const tags = [];
+    if(threat)  tags.push(`<span class="tag bad">⚔️ ${liveAttacks.length} Angriff${liveAttacks.length>1?'e':''}</span>`);
+    if(spyOnly) tags.push('<span class="tag warn">🔍 Spionage</span>');
+    if(!threat && !spyOnly) tags.push('<span class="tag ok">✓ sicher</span>');
+    if(p.api?.building?.planetaryShield) tags.push(`<span class="tag info">🛡️ Schild ${p.api.building.planetaryShield}</span>`);
+    if(p.api?.building?.orbitalDefenceStation) tags.push(`<span class="tag info">🔫 ODS ${p.api.building.orbitalDefenceStation}</span>`);
+    if(p.api?.points) tags.push(`<span class="tag info">${num(p.api.points)} Pkt</span>`);
+
+    const firstThreat = liveAttacks[0];
+    const proj = firstThreat ? projectResources(p.api, firstThreat.at) : projectResources(p.api, now);
+    const share = parseFloat($('#plunderShare').value);
+
+    return `
+    <div class="pcard ${cls}">
+      <header>
+        <h3>${p.name ? '🌍 '+esc(p.name) : '🌐 Planet'} <span class="coord">${esc(p.coord)}</span></h3>
+        ${tags.join('')}
+        <div class="spacer"></div>
+        ${firstThreat ? `<div style="text-align:right">
+            <div class="mono" style="font-size:23px;font-weight:700;color:var(--bad)" data-cd="${firstThreat.at}">–</div>
+            <div class="hint">Einschlag ${hhmmss(firstThreat.at)}</div>
+          </div>` : ''}
+      </header>
+      <div class="pbody">
+        <div class="grid2">
+          <div>
+            <div class="section-h">Zeitachse</div>
+            ${gantt(p)}
+            <div class="legend">
+              <span><i style="background:var(--bad)"></i>Feindangriff</span>
+              <span><i style="background:var(--warn)"></i>Spionage</span>
+              <span><i style="background:var(--own)"></i>Eigene Landung</span>
+              <span><i style="background:rgba(52,211,153,.5)"></i>Save-Fenster</span>
+              <span><i style="background:#fff"></i>jetzt</span>
+            </div>
+            <div class="section-h" style="margin-top:16px">Save-Fenster &amp; Empfehlungen</div>
+            ${renderWindows(p)}
+          </div>
+          <div>
+            ${renderResources(p, proj, share, firstThreat)}
+            ${renderPlanetEvents(p)}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function gantt(p){
+  const now = serverNow();
+  const times = p.events.map(e=>e.at);
+  let from = Math.min(now, ...times) - 60e3;
+  let to   = Math.max(now, ...times) + 60e3;
+  if(to - from < 300e3) to = from + 300e3;
+  const span = to - from;
+  const pct = t => ((t - from)/span*100).toFixed(3);
+
+  let html = '<div class="gantt" data-from="'+from+'" data-to="'+to+'"><div class="axis"></div>';
+
+  for(const w of p.windows){
+    if(w.nextAttack){
+      html += `<div class="win" style="left:${pct(w.arrival.at)}%;width:${((w.nextAttack.at-w.arrival.at)/span*100).toFixed(3)}%"
+        title="Save-Fenster ${durLong(w.gapSec)}"></div>`;
+    }
+  }
+  for(const e of p.events){
+    const k = e.hostile ? 'enemy' : (e.spy ? 'spy' : 'own');
+    html += `<div class="ev ${k}" style="left:${pct(e.at)}%" title="${esc(e.mission)} · ${hhmmss(e.at)} · ${esc(e.start)} ➜ ${esc(e.ziel)}"></div>`;
+  }
+  const steps = 5;
+  for(let i=0;i<=steps;i++){
+    const t = from + span*i/steps;
+    html += `<div class="tick" style="left:${(i/steps*100).toFixed(2)}%">${hhmmss(t)}</div>`;
+  }
+  html += `<div class="now" data-now style="left:${pct(now)}%"></div></div>`;
+  return html;
+}
+
+function renderWindows(p){
+  const now = serverNow();
+  if(!p.windows.length) return '<p class="hint">Keine eigenen Flotten mit Ziel auf diesem Planeten.</p>';
+  if(!p.attacks.length) return '<p class="hint">Kein Angriff auf diesen Planeten – nichts zu saven. ✅</p>';
+
+  return p.windows.map(w => {
+    const a = w.arrival;
+    let cls = 'win-item', gapCls = 'g-ok', right = '', note = '';
+    if(w.nextAttack){
+      const g = w.gapSec;
+      if(g < 120){ cls += ' none'; gapCls = 'g-bad'; }
+      else if(g < 600){ cls += ' tight'; gapCls = 'g-warn'; }
+      right = `<div class="gap ${gapCls}">${durLong(g)}<br><span class="hint" style="font-weight:600">Fenster</span></div>`;
+      note = `Nach der Landung bleiben <b>${durLong(g)}</b> zum Wegschicken – Deadline <b>${hhmmss(w.nextAttack.at)}</b>
+              (<span data-cd="${w.nextAttack.at}">–</span>).`;
+      if(g < 120) note += ' <b style="color:var(--bad)">Extrem knapp!</b>';
+    } else if(w.tooLate){
+      cls += ' none'; 
+      right = `<div class="gap g-bad">zu spät<br><span class="hint" style="font-weight:600">nach Einschlag</span></div>`;
+      note = `Landet <b>nach</b> dem Angriff (${hhmmss(w.prevAttack.at)}) – Flotte ist dann sicher, der Planet nicht.`;
+    } else {
+      right = `<div class="gap g-ok">frei<br><span class="hint" style="font-weight:600">kein Angriff</span></div>`;
+      note = 'Kein feindlicher Einschlag nach dieser Landung.';
+    }
+    const past = a.at < now ? ' style="opacity:.45"' : '';
+    return `<div class="${cls}"${past}>
+      <div class="when">${hhmmss(a.at)}<small>${a.at<now?'gelandet':'landet in'} <span data-cd="${a.at}">–</span></small></div>
+      <div class="meta">${a.icon} <b>${esc(a.mission)}</b> · ${esc(a.owner)}<br>
+        <span class="hint">${esc(a.start)} ➜ ${esc(a.ziel)}</span><br>${note}</div>
+      ${right}
+    </div>`;
+  }).join('');
+}
+
+function renderResources(p, proj, share, firstThreat){
+  if(!proj){
+    return `<div class="section-h">Rohstoffe</div>
+      <p class="hint">Keine API-Daten für diesen Planeten.${S.planets.size ? ' (Fremder Planet)' : ' API verbinden für Rohstoff-Prognose.'}</p>`;
+  }
+  const title = firstThreat ? `Rohstoffe zum Einschlag (${hhmmss(firstThreat.at)})` : 'Rohstoffe (live)';
+  let total = 0;
+  const cells = Object.keys(RES).map(k => {
+    const r = proj[k]; total += r.val;
+    const fill = r.cap ? Math.min(100, r.val/r.cap*100) : 0;
+    return `<div class="r">
+      <div class="n">${RES[k].icon} ${RES[k].de}</div>
+      <div class="v">${short(r.val)}</div>
+      <div class="p">${r.prod>=0?'+':''}${short(r.prod)}/h${r.cap?` · Lager ${Math.round(fill)} %`:''}</div>
+      <div class="bar"><i style="width:${fill}%"></i></div>
+    </div>`;
+  }).join('');
+  return `<div class="section-h">${title}</div>
+    <div class="res">${cells}</div>
+    <div style="margin-top:9px;font-size:13px;color:var(--dim)">
+      Gesamt <b class="mono" style="color:#fff">${num(total)}</b> · davon
+      <b class="mono" style="color:var(--bad)">${num(total*share)}</b> plünderbar (${Math.round(share*100)} %)
+    </div>`;
+}
+
+function renderPlanetEvents(p){
+  const rows = p.events.map(e => `
+    <div class="kv"><div><span>${e.icon} ${esc(e.mission)} · ${esc(e.start)} ➜ ${esc(e.ziel)}</span>
+    <b>${hhmmss(e.at)}</b></div></div>`).join('');
+  let extra = '';
+  if(p.api?.building){
+    const b = p.api.building;
+    const top = Object.entries(b).filter(([,v]) => v>0).sort((a,b2)=>b2[1]-a[1]).slice(0,8)
+      .map(([k,v]) => `<div><span>${BUILDINGS[k]||k}</span><b>${v}</b></div>`).join('');
+    extra = `<details class="acc"><summary>Gebäude</summary><div class="kv">${top}</div></details>`;
+  }
+  return `<details class="acc" style="margin-top:12px"><summary>Alle ${p.events.length} Ereignisse</summary>${rows}</details>${extra}`;
+}
+
+function renderTable(){
+  const el = $('#tableWrap');
+  if(!S.events.length){ el.innerHTML=''; return; }
+  const f = S.filters;
+  const rows = S.events.filter(e => f.has(e.section));
+
+  el.innerHTML = `
+  <div class="panel">
+    <header>
+      <h2>🗓️ Chronologie</h2>
+      <div class="spacer"></div>
+      <div class="chips">
+        <span class="chip ${f.has('fremd')?'on':''}" data-f="fremd">Feindliche</span>
+        <span class="chip ${f.has('hin')?'on':''}" data-f="hin">Hinflug</span>
+        <span class="chip ${f.has('rueck')?'on':''}" data-f="rueck">Rückflug</span>
+      </div>
+      <button class="btn sm ghost" id="btnCopy">📋 Zusammenfassung</button>
+      <button class="btn sm ghost" id="btnJson">⬇️ JSON</button>
+    </header>
+    <div class="body" style="padding:0;overflow:auto;max-height:640px">
+      <table>
+        <thead><tr>
+          <th>Landung</th><th>Countdown</th><th>Besitzer</th><th>Auftrag</th>
+          <th>Route</th><th>Ziel-Planet</th>
+        </tr></thead>
+        <tbody>${rows.map(e => {
+          const k = e.hostile ? 'r-enemy' : (e.section==='rueck' ? 'r-back' : 'r-own');
+          return `<tr class="${k}" data-at="${e.at}">
+            <td class="t">${hhmmss(e.at)}</td>
+            <td class="cd" data-cd="${e.at}">–</td>
+            <td style="color:${e.section==='fremd'?'var(--bad)':(e.section==='rueck'?'var(--ok)':'var(--own)')};font-weight:600">${esc(e.owner)}</td>
+            <td>${e.icon} ${esc(e.mission)}</td>
+            <td class="mono" style="font-size:12.5px">${esc(e.start)} ➜ ${esc(e.ziel)}</td>
+            <td>${esc(planetLabel(e.ziel))}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>
+  </div>`;
+
+  $$('#tableWrap .chip').forEach(c => c.onclick = () => {
+    const k = c.dataset.f;
+    S.filters.has(k) ? S.filters.delete(k) : S.filters.add(k);
+    renderTable(); tick();
+  });
+  $('#btnCopy').onclick = copySummary;
+  $('#btnJson').onclick = downloadJson;
+}
+
+/* ---------- Live-Ticker ---------- */
+function tick(){
+  const now = serverNow();
+  $('#clock').textContent = hhmmss(now);
+
+  $$('[data-cd]').forEach(el => {
+    const at = +el.dataset.cd;
+    const s = (at - now)/1000;
+    el.textContent = s >= 0 ? dur(s) : '+'+dur(-s);
+    if(s < 0) el.style.color = 'var(--faint)';
+  });
+  $$('tr[data-at]').forEach(tr => tr.classList.toggle('past', +tr.dataset.at < now));
+  $$('.gantt,[data-tl]').forEach(g => {
+    const from = +g.dataset.from, to = +g.dataset.to;
+    const n = g.querySelector('[data-now]');
+    if(n) n.style.left = Math.max(0, Math.min(100, (now-from)/(to-from)*100)) + '%';
+  });
+
+  // Online-Plan alle 30 s neu aufbauen (erledigte Aufgaben fallen raus)
+  if(S.events.length && now - (S._masterAt||0) > 30e3){ S._masterAt = now; renderMaster(); }
+
+  if($('#alarmOn').checked) checkAlarms(now);
+}
+
+function checkAlarms(now){
+  for(const e of S.events){
+    if(!e.hostile) continue;
+    const s = (e.at - now)/1000;
+    for(const th of [600, 300, 60, 10]){
+      const key = e.at+'@'+th;
+      if(s <= th && s > th-1.5 && !S.alarmed.has(key)){
+        S.alarmed.add(key);
+        toast(`🚨 <b>Einschlag in ${durLong(s)}</b><br>${esc(e.mission)} auf ${esc(planetLabel(e.ziel))}`, 'bad');
+        notify(`Angriff in ${durLong(s)}`, `${e.mission} auf ${planetLabel(e.ziel)}`);
+      }
+    }
+  }
+}
+function notify(title, body){
+  if(!('Notification' in window)) return;
+  if(Notification.permission === 'granted') new Notification(title, {body});
+  else if(Notification.permission !== 'denied') Notification.requestPermission();
+}
+
+/* ---------- Export ---------- */
+function copySummary(){
+  const now = serverNow();
+  const L = [`GigraWars Flottenlage – Stand ${hhmmss(now)}`, ''];
+  for(const p of S.analysis){
+    L.push(`■ ${planetLabel(p.coord)}`);
+    for(const e of p.events)
+      L.push(`   ${hhmmss(e.at)}  ${String(e.mission).padEnd(14)} ${e.owner.padEnd(18)} ${e.start} -> ${e.ziel}`);
+    for(const w of p.windows){
+      if(w.nextAttack) L.push(`   → SAVE ab ${hhmmss(w.arrival.at)}, Fenster ${durLong(w.gapSec)} (Deadline ${hhmmss(w.nextAttack.at)})`);
+      else if(w.tooLate) L.push(`   → Landung ${hhmmss(w.arrival.at)} zu spät (Angriff ${hhmmss(w.prevAttack.at)})`);
+    }
+    L.push('');
+  }
+  const txt = L.join('\n');
+  navigator.clipboard.writeText(txt).then(
+    ()=>toast('📋 Zusammenfassung kopiert','ok'),
+    ()=>{ const w=window.open(); w.document.write('<pre>'+esc(txt)+'</pre>'); }
+  );
+}
+function downloadJson(){
+  const data = {generatedAt:new Date(serverNow()).toISOString(), snapshotAt:new Date(S.snapshotAt).toISOString(),
+    account:S.account, planets:[...S.planets.values()], events:S.events,
+    analysis:S.analysis.map(p=>({coord:p.coord,name:p.name,
+      windows:p.windows.map(w=>({arrival:w.arrival.at,gapSec:w.gapSec,tooLate:w.tooLate}))}))};
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
+  const a = document.createElement('a');
+  a.href=url; a.download=`gigrawars-lage-${hhmmss(serverNow()).replace(/:/g,'')}.json`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ============================================================================
+   API
+   ========================================================================== */
+function tokenValue(){ return $('#tokenInput').value.trim(); }
+function isLocalHost(){
+  const h = location.hostname;
+  return location.protocol === 'file:' || h === '' || h === 'localhost' ||
+         h === '127.0.0.1' || h === '::1' || /^127\./.test(h);
+}
+function universe(){
+  const u = $('#uniInput').value.trim();
+  if(u) return u.toLowerCase();
+  const m = /^([a-z0-9]+)-/i.exec(tokenValue());
+  return m ? m[1].toLowerCase() : 'uni5';
+}
+function candidateBases(){
+  const mode = $('#modeSel').value;
+  const local = isLocalHost();
+  const direct = [`https://${universe()}.gigrawars.de/api/`];
+
+  // Proxys nur dort anbieten, wo sie überhaupt erreichbar sind:
+  //  - same-origin /gw/ nur, wenn die Seite selbst lokal läuft (auf GitHub Pages gibt es keinen Proxy)
+  //  - localhost:8787 nur, wenn die Seite NICHT über https läuft (sonst Mixed-Content-Block)
+  const proxy = [];
+  if(location.protocol.startsWith('http') && local) proxy.push(location.origin + '/gw/');
+  if(location.protocol !== 'https:')               proxy.push('http://localhost:8787/gw/');
+
+  if(mode === 'proxy')  return proxy.length ? proxy : direct;
+  if(mode === 'direct') return direct;
+  // auto: gehostet (z. B. GitHub Pages) → direkt zuerst; lokal → Proxy zuerst
+  return local ? [...new Set([...proxy, ...direct])]
+               : [...new Set([...direct, ...proxy])];
+}
+
+async function apiGet(base, path){
+  const r = await fetch(base + path, {headers:{'accept':'application/json','x-auth-token':tokenValue()}});
+  const lim = r.headers.get('x-ratelimit-limit'), rem = r.headers.get('x-ratelimit-remaining');
+  if(lim) S.rate = {limit:lim, remaining:rem};
+  const date = r.headers.get('x-gw-server-date') || r.headers.get('date');
+  if(date){
+    const t = Date.parse(date);
+    if(!isNaN(t)){ S.serverOffset = t - Date.now(); S.clockSrc = 'server (http)'; }
+  }
+  if(!r.ok){
+    let d = ''; try{ d = (await r.json()).detail || ''; }catch{}
+    throw new Error(`HTTP ${r.status}${d ? ' – '+d : ''}`);
+  }
+  return r.json();
+}
+
+async function loadApi(silent=false){
+  let token = tokenValue();
+  LS.set('token', token); LS.set('uni', $('#uniInput').value.trim()); LS.set('mode', $('#modeSel').value);
+  setApiState('wait','verbinde …');
+
+  // Ohne Token im Feld: prüfen, ob der lokale Server einen Token hinterlegt hat.
+  if(!token){
+    let found = false;
+    for(const b of candidateBases().filter(b => b.endsWith('/gw/'))){
+      try{
+        const h = await (await fetch(b + 'health')).json();
+        if(h?.hasDefaultToken){ S.apiBase = b; found = true; break; }
+      }catch{}
+    }
+    if(!found){
+      setApiState('off','Kein Token');
+      if(!silent){ $('#apiBody').hidden = false; toast('Bitte API-Token eintragen (oder <code class="k">gw-token.txt</code> anlegen).','bad'); }
+      return;
+    }
+  }
+
+  let lastErr = null;
+  const bases = [...new Set([...(S.apiBase ? [S.apiBase] : []), ...candidateBases()])];
+  for(const b of bases){
+    try{
+      const me = await apiGet(b, 'accounts/me');
+      S.apiBase = b; S.account = me;
+      const planets = await apiGet(b, 'accounts/me/planets').catch(()=>me.planets||[]);
+      const at = serverNow();
+      S.planets = new Map(planets.map(p => [p.coordinate, {...p, name:p.name, _fetchedAt:at}]));
+      try{
+        const bal = await apiGet(b, 'accounts/me/battle-balance');
+        S.balance = bal;
+        if(bal.createdAt){
+          const t = Date.parse(bal.createdAt);
+          if(!isNaN(t)){ S.serverOffset = t - Date.now(); S.clockSrc = 'server (sync)'; }
+        }
+      }catch{}
+      setApiState('on', `${me.username} · ${num(me.allPoints)} Pkt`);
+      $('#clockSrc').textContent = S.clockSrc;
+      renderApiSummary();
+      if(S.events.length){ buildAnalysis(); render(); }
+      if(!silent) toast(`🔌 API verbunden als <b>${esc(me.username)}</b>`, 'ok');
+      return;
+    }catch(err){ lastErr = err; }
+  }
+  S.apiBase = null;
+  setApiState('off', 'Verbindung fehlgeschlagen');
+  if(!silent){
+    $('#apiBody').hidden = false;
+    toast(`❌ API nicht erreichbar: ${esc(lastErr?.message||'')}<br><span class="hint">Tipp: START.cmd starten und http://localhost:8787 öffnen.</span>`,'bad');
+  }
+}
+
+function setApiState(state, txt){
+  const p = $('#apiPill');
+  p.className = 'pill ' + (state==='on'?'on':state==='wait'?'wait':'off');
+  $('#apiPillTxt').textContent = txt;
+  const rp = $('#ratePill');
+  if(S.rate){ rp.hidden = false; $('#ratePillTxt').textContent = `Limit ${S.rate.remaining}/${S.rate.limit}`; }
+}
+
+function renderApiSummary(){
+  const a = S.account; if(!a) return;
+  const fleet = Object.entries(a.flyingFleetUnits||{}).filter(([,v])=>v>0)
+    .map(([k,v]) => `<div><span>${SHIPS[k]||k}</span><b>${num(v)}</b></div>`).join('');
+  const fres = Object.entries(a.flyingFleetResources||{}).filter(([,v])=>v>0)
+    .map(([k,v]) => `<div><span>${RES[k]?.icon||''} ${RES[k]?.de||k}</span><b>${short(v)}</b></div>`).join('');
+  const res = Object.entries(a.research||{}).map(([k,v]) => `<div><span>${RESEARCH[k]||k}</span><b>${v}</b></div>`).join('');
+  const bal = S.balance ? `
+    <details class="acc"><summary>Kampfbilanz</summary><div class="kv">
+      <div><span>Zerstört (Schiffe)</span><b>${num(S.balance.destroyed?.shipCount)}</b></div>
+      <div><span>Verloren (Schiffe)</span><b>${num(S.balance.lost?.shipCount)}</b></div>
+      <div><span>Erbeutet</span><b>${short(Object.values(S.balance.destroyed?.stolen||{}).reduce((x,y)=>x+y,0))}</b></div>
+      <div><span>Geraubt worden</span><b>${short(Object.values(S.balance.lost?.stolen||{}).reduce((x,y)=>x+y,0))}</b></div>
+    </div></details>` : '';
+
+  $('#apiSummary').innerHTML = `
+    <div class="kv">
+      <div><span>Spieler</span><b>${esc(a.username)}</b></div>
+      <div><span>Allianz</span><b>${a.alliance ? esc(a.alliance.tag||a.alliance.name) : '–'}</b></div>
+      <div><span>Punkte</span><b>${num(a.allPoints)}</b></div>
+      <div><span>Planeten</span><b>${S.planets.size}</b></div>
+      <div><span>Verbindung</span><b>${S.apiBase?.includes('localhost')||S.apiBase?.startsWith(location.origin)?'Proxy':'direkt'}</b></div>
+    </div>
+    ${fleet ? `<details class="acc"><summary>Flotte unterwegs</summary><div class="kv">${fleet}${fres}</div></details>`:''}
+    <details class="acc"><summary>Forschung</summary><div class="kv">${res}</div></details>
+    ${bal}`;
+}
+
+/* ============================================================================
+   INIT
+   ========================================================================== */
+/** Beispieldaten – werden relativ zur aktuellen Serverzeit erzeugt. */
+function demoText(){
+  const t = hhmmss(serverNow());
+  const d = new Date(serverNow());
+  return `Nachrichten ${t} - ${pad(d.getDate())}.${pad(d.getMonth()+1)}.${d.getFullYear()}
+Fremde feindliche Flotten (3)
+00:06:12
+Angriff
+13:44:2
+12:101:5
+00:41:55
+Angriff
+9:12:8
+12:101:5
+01:12:03
+Spionage
+13:44:2
+12:99:1
+Eigene Flotten Hinflug (1)
+00:22:40
+Transport
+12:31:6
+12:101:5
+Eigene Flotten Rückflug (2)
+00:03:40
+Rückflug
+12:101:5
+14:70:3
+00:55:10
+Rückflug
+12:99:1
+9:12:8`;
+}
+
+function init(){
+  $('#inputData').value  = LS.get('input','');
+  $('#refTimeInput').value = LS.get('refTime','');
+  $('#tokenInput').value = LS.get('token','');
+  $('#uniInput').value   = LS.get('uni','');
+  $('#modeSel').value    = LS.get('mode','auto');
+  $('#alarmOn').checked  = LS.get('alarm',true);
+  $('#autoRefresh').checked = LS.get('autoRefresh',false);
+
+  $('#btnAnalyze').onclick = analyze;
+  $('#btnDemo').onclick = () => { $('#inputData').value = demoText(); $('#refTimeInput').value=''; analyze(); };
+  $('#btnClear').onclick = () => { $('#inputData').value=''; LS.set('input',''); S.events=[]; S.analysis=[]; render(); };
+  $('#btnToggleIn').onclick = () => {
+    const b = $('#inputBody'); b.hidden = !b.hidden;
+    $('#btnToggleIn').textContent = b.hidden ? 'Ausklappen' : 'Einklappen';
+  };
+  $('#btnApiToggle').onclick = () => { $('#apiBody').hidden = !$('#apiBody').hidden; };
+  $('#btnApiLoad').onclick = () => loadApi(false);
+  $('#alarmOn').onchange = e => { LS.set('alarm', e.target.checked); if(e.target.checked){ notify('Alarm aktiv','Du wirst vor Einschlägen gewarnt.'); } };
+  $('#autoRefresh').onchange = e => LS.set('autoRefresh', e.target.checked);
+  $('#plunderShare').onchange = () => { if(S.events.length){ renderKpis(); renderPlanets(); tick(); } };
+  $('#ageMode').onchange = () => { if($('#inputData').value.trim()) analyze(); };
+
+  document.addEventListener('keydown', e => {
+    if((e.ctrlKey||e.metaKey) && e.key === 'Enter'){ e.preventDefault(); analyze(); }
+  });
+
+  setInterval(tick, 250);
+  setInterval(() => { if($('#autoRefresh').checked && S.apiBase) loadApi(true); }, 5*60_000);
+
+  render();
+  loadApi(true);   // versucht still zu verbinden (Token aus Feld oder vom lokalen Server)
+  if($('#inputData').value.trim()) analyze();
+}
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
