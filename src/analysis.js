@@ -63,6 +63,138 @@ export function freeCapacity() {
   return { noBuild, idleYard };
 }
 
+/* ---------- Online-/Save-Fenster ---------- */
+
+// Vorlaufzeit: so lange vor einem Einschlag musst du online sein, um zu saven.
+export const SAVE_LEAD_SEC = 600;
+// Zwei Fenster, die enger als das beieinander liegen, werden zu einer Session.
+const MERGE_GAP_SEC = 900;
+// Eigene Landung so kurz vor einem Einschlag = die Flotte steht im Feuer.
+const LANDING_RISK_SEC = 900;
+
+/** Feindliche Einschläge auf eigenen Planeten, chronologisch, ab jetzt. */
+function futureImpacts(now) {
+  return state.fleets
+    .filter((e) => e.hostile && e.at >= now - 1000 && state.ownPlanets.has(e.ziel))
+    .sort((a, b) => a.at - b.at);
+}
+
+/**
+ * Zusammenhängende Zeitbereiche, in denen du online sein musst, um zu saven.
+ * Einschläge, die dicht beieinander liegen, werden zu einer Session gebündelt.
+ * @returns {Array<{from,to,impacts,coords,level,durationSec,startsInSec,
+ *   stationedCoords,landings,builds,gapBeforeSec}>}
+ */
+export function saveWindows({ leadSec = SAVE_LEAD_SEC } = {}) {
+  const now = serverNow();
+  const impacts = futureImpacts(now);
+  if (!impacts.length) return [];
+
+  const blocks = [];
+  for (const imp of impacts) {
+    const from = imp.at - leadSec * 1000;
+    const last = blocks[blocks.length - 1];
+    if (last && from <= last.to + MERGE_GAP_SEC * 1000) {
+      last.to = Math.max(last.to, imp.at);
+      last.impacts.push(imp);
+    } else {
+      blocks.push({ from, to: imp.at, impacts: [imp] });
+    }
+  }
+
+  let prevEnd = null;
+  return blocks.map((b) => {
+    const coords = [...new Set(b.impacts.map((e) => e.ziel))];
+    // Planeten in diesem Fenster, auf denen tatsächlich etwas zu verlieren ist.
+    const stationedCoords = coords.filter((c) => {
+      const p = state.planets.get(c);
+      return p ? stationedSummary(p).hasAny : false;
+    });
+    // Eigene Flotten, die mitten im Fenster landen — die stehen dann im Feuer.
+    const landings = state.fleets.filter(
+      (e) => e.own && e.at >= b.from && e.at <= b.to && coords.includes(e.ziel));
+    // Bauaufträge, die im Fenster auf einem angegriffenen Planeten fertig werden.
+    const builds = state.buildOrders.filter(
+      (o) => o.at >= b.from && o.at <= b.to && coords.includes(o.coord));
+
+    const level = stationedCoords.length ? 'critical' : 'warn';
+    const gapBeforeSec = prevEnd != null ? (b.from - prevEnd) / 1000 : null;
+    prevEnd = b.to;
+
+    return {
+      ...b, coords, stationedCoords, landings, builds, level,
+      durationSec: (b.to - b.from) / 1000,
+      startsInSec: (b.from - now) / 1000,
+      endsInSec: (b.to - now) / 1000,
+      active: now >= b.from && now <= b.to,
+      gapBeforeSec,
+    };
+  });
+}
+
+/**
+ * Kritische Stellen als flache, priorisierte Liste — das, was schiefgehen kann.
+ * @returns {Array<{kind,at,coord,text,level}>}
+ */
+export function criticalPoints() {
+  const now = serverNow();
+  const impacts = futureImpacts(now);
+  const out = [];
+
+  for (const imp of impacts) {
+    const p = state.planets.get(imp.ziel);
+    const st = p ? stationedSummary(p) : null;
+    if (st?.hasAny) {
+      out.push({
+        kind: 'loss', at: imp.at, coord: imp.ziel, level: 'critical',
+        text: `${st.total ? `${st.total} Schiffe` : ''}${st.total && st.defTotal ? ' + ' : ''}${st.defTotal ? `${st.defTotal} Verteidigung` : ''} stehen beim Einschlag ungeschützt`,
+      });
+    }
+    // Eigene Flotte landet kurz vor dem Einschlag auf demselben Planeten.
+    for (const a of state.fleets) {
+      if (!a.own || a.ziel !== imp.ziel) continue;
+      const lead = (imp.at - a.at) / 1000;
+      if (lead >= 0 && lead <= LANDING_RISK_SEC) {
+        out.push({
+          kind: 'landing', at: a.at, coord: a.ziel, level: 'critical',
+          text: `Eigene Flotte (${a.mission}) landet nur ${Math.round(lead / 60)} min vor dem Einschlag`,
+        });
+      }
+    }
+  }
+
+  // Rückflüge, die erst nach dem letzten Angriff ankommen.
+  for (const t of threatAnalysis()) {
+    if (!t.mine) continue;
+    for (const w of t.windows) {
+      if (w.tooLate && w.arrival.at >= now - 1000) {
+        out.push({
+          kind: 'late', at: w.arrival.at, coord: t.coord, level: 'warn',
+          text: `Ankunft von ${w.arrival.start} erst nach dem letzten Angriff`,
+        });
+      }
+    }
+  }
+
+  // Gleichzeitige Einschläge auf mehreren Planeten (< 2 min auseinander).
+  for (let i = 0; i < impacts.length; i++) {
+    const clash = impacts.filter(
+      (x) => x !== impacts[i] && Math.abs(x.at - impacts[i].at) <= 120e3 && x.ziel !== impacts[i].ziel);
+    if (clash.length && impacts[i].at <= (clash[0].at)) {
+      out.push({
+        kind: 'clash', at: impacts[i].at, coord: impacts[i].ziel, level: 'warn',
+        text: `Zeitgleicher Einschlag auf ${clash.length + 1} Planeten — knappe Reihenfolge beim Saven`,
+      });
+    }
+  }
+
+  const seen = new Set();
+  const rank = { critical: 0, warn: 1 };
+  return out
+    .filter((c) => { const k = `${c.kind}|${c.at}|${c.coord}`; if (seen.has(k)) return false; seen.add(k); return true; })
+    .sort((a, b) => (rank[a.level] - rank[b.level]) || (a.at - b.at));
+}
+
 const TL_TYPES = {
   attack: { label: 'Angriff', icon: '⚔', color: 'threat' },
   spy: { label: 'Spionage', icon: '◎', color: 'own' },

@@ -47,19 +47,30 @@ hochgeladen.
 
 ## Die vier Tabs
 
-- **Lage** – Cockpit-Ansicht: Countdown bis zum nächsten Einschlag, welche
-  Schiffe/Verteidigung dort gerade stehen (Save-vs-Verteidigen-Entscheidung),
-  Signal-Kacheln (bedrohte Planeten, Flotten unterwegs, nächster Bau,
-  freie Kapazität) sowie die Liste bedrohter Planeten mit Save-Fenstern.
+- **Lage** – Cockpit-Ansicht und wichtigster Bildschirm:
+  - Countdown bis zum nächsten Einschlag mit den dort stationierten Schiffen
+    (Save-vs-Verteidigen-Entscheidung).
+  - **Wann du online sein musst** – zusammenhängende Zeitbereiche statt
+    Einzelzeiten: pro Einschlag 10 min Vorlauf, dicht aufeinanderfolgende
+    Einschläge werden zu *einer* Session gebündelt. Je Fenster: Start–Ende,
+    Dauer, Countdown, betroffene Planeten und die Pause davor.
+  - **Zeitachse** – direkt eingebettet, mit den Online-Fenstern als farbige
+    Bänder (rot = Flotte steht im Feuer, gelb = Einschlag ohne stationierte
+    Flotte). Angegriffene Planeten stehen oben.
+  - **Kritische Stellen** – nach Schweregrad sortiert: Verlustrisiko
+    (Schiffe stehen beim Einschlag da), eigene Landung kurz vor dem
+    Einschlag, Rückflüge die zu spät kommen, zeitgleiche Einschläge.
+  - Signal-Kacheln, bedrohte Planeten und freie Kapazität.
 - **Bauen & Forschen** – laufende Bauaufträge mit Countdown, freie Kapazität
   (Planeten ohne Auftrag / mit leerer Schiffsfabrik), Forschungszentren, und
   aufklappbar die vollständige Gebäude-Matrix aller Planeten.
 - **Flotten** – pro Planet gruppiert: was stationiert ist (Schiffe,
   Verteidigung) und was gerade dorthin bzw. von dort wegfliegt. Bedrohte
   Planeten stehen oben.
-- **Zeitachse** – eine gemeinsame Achse aller Ereignisse (Angriffe,
-  Spionage, eigene Hin-/Rückflüge, Handel, Bau-/Forschungsabschlüsse) mit
-  Marker je Typ, Typ-Filtern und einer chronologischen Liste darunter.
+- **Zeitachse** – dieselbe Achse wie in der Lage, nur größer und filterbar:
+  alle Ereignisse (Angriffe, Spionage, eigene Hin-/Rückflüge, Handel,
+  Bau-/Forschungsabschlüsse) mit Marker je Typ, Typ-Filtern, den
+  Online-Fenster-Bändern und einer chronologischen Liste darunter.
 
 Auf schmalen Bildschirmen (≤ 820 px) wird aus der Desktop-Tabellen-Matrix eine
 Kartenansicht pro Planet, und die Tab-Leiste wird zum Burger-Menü.
@@ -71,7 +82,7 @@ index.html        Grundgerüst (Topbar, Paste-Feld, #view, Drawer)
 styles.css         Theme „Deep Orbit"
 src/
   state.js         zentraler Zustand: Paste-Erkennung, Merge, Persistenz, Serverzeit
-  analysis.js       Ableitungen: Bedrohungen, Save-Fenster, freie Kapazität, Zeitachse
+  analysis.js       Ableitungen: Bedrohungen, Online-/Save-Fenster, kritische Stellen, freie Kapazität, Zeitachse
   domain.js         kanonische Keys ↔ deutsche Bezeichnungen (Gebäude/Schiffe/Rohstoffe)
   demo.js           Beispieldaten für „Beispiel laden"
   parse/
@@ -83,6 +94,7 @@ src/
     time.js           Anzeige-Helfer (Uhrzeit, Countdown, Zahlenformat, Koordinaten-Chip)
   views/
     lage.js, bauen.js, flotten.js, zeitachse.js, components.js
+    timeline.js       geteilter Gantt-Renderer (Lage + Zeitachse) inkl. Fenster-Bänder
   app.js             Bootstrap: Tabs, Tick-Loop, Alarme, Drawer, Toasts
 test/
   parse.test.mjs      Parser-Regressionstest gegen echte Pastes
