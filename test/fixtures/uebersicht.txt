@@ -1,0 +1,156 @@
+GigraWars
+Eisen
+344.241
+Lutinum
+117.224
+Wasser
+203.044
+Wasserstoff
+107.337
+
+Planet 
+
+12:101:5 [M]
+ Übersicht
+ Konstruktion
+ Forschung
+ Schiffe/Türme
+ Handel
+ Technik
+Universum
+ Flotten
+ Galaxie
+ Events
+Allianz
+ Intern
+ Forum
+ Verwaltung
+Community
+ Nachrichten
+ Suche
+ Highscore
+Account
+ Statistik
+ Premium
+ Einstellungen
+ Logout
+Nachrichten
+10:03:23 - 07.08.2026
+Eigene Flotten (2) Fremde Flotten (16) Gebäude (99) Forschungen (12) Handel (3)
+Fremde feindliche Flotten (4)
+00:41:52
+Angriff
+12:40:2
+12:44:5
+00:53:44
+Angriff
+12:40:2
+12:31:6
+01:27:53
+Angriff
+12:40:2
+12:65:6
+02:29:02
+Angriff
+12:40:2
+12:101:5
+Eigene Flotten Hinflug (5)
+00:07:44
+Angriff
+12:101:5
+12:99:3
+00:10:46
+Angriff
+12:101:5
+12:104:1
+00:19:13
+Stationierung
+12:97:1
+12:101:5
+01:10:37
+Transport
+12:44:5
+12:44:20
+02:19:29
+Transport
+12:101:5
+12:99:1
+Eigene Flotten Rückflug (12)
+00:42:03
+Rückflug
+12:31:6
+12:31:7
+00:44:17
+Rückflug
+12:44:5
+12:44:6
+00:48:05
+Rückflug
+12:65:6
+12:65:3
+00:48:21
+Rückflug
+12:65:6
+12:65:2
+00:50:08
+Rückflug
+12:90:1
+12:90:4
+01:22:06
+Rückflug
+12:101:5
+12:99:1
+01:28:15
+Rückflug
+12:65:6
+12:65:4
+02:54:52
+Rückflug
+12:101:5
+12:99:3
+03:00:38
+Rückflug
+12:101:5
+12:104:1
+03:04:34
+Rückflug
+12:44:5
+12:44:20
+03:11:46
+Rückflug
+12:97:1
+12:101:5
+05:24:13
+Rückflug
+12:101:5
+12:99:1
+Fremde friedliche Flotten (1)
+02:00:38
+Handel
+12:124:1
+12:101:5
+Gebäudeaufträge (6)
+00:10:20	Schiffsfabrik Stufe 1	12:99:4
+00:26:28	Eisenspeicher Stufe 1	12:97:1
+00:53:00	Kommandozentrale Stufe 8	12:90:1
+01:04:28	Kommandozentrale Stufe 6	12:65:6
+01:23:44	Eisenmine Stufe 16	12:44:5
+01:26:43	Kommandozentrale Stufe 7	12:31:6
+Forschungsaufträge
+Schiffe (146,16 ckk)
+Recycler	30
+Spionagesonde	197
+Raider	1
+Longeagle V	24
+Kleines Handelsschiff	5
+Großes Handelsschiff	8
+Verteidigungsanlagen (0,00 ckk)
+Handelsposten Lager
+Wasser	186.450
+Punkte
+Gesamtübersicht
+Anzahl Planeten	8
+Punkte (Planeten)	3.966
+Punkte (Forschung)	2.034
+Gesamtpunkte	5.999
+Hilfe Spielregeln Support Status Impressum v3.16.11-beta

@@ -1,0 +1,14 @@
+{
+  "name": "gw-orbitkommando",
+  "version": "2.0.0",
+  "description": "Statisches, paste-getriebenes GigraWars-Kommando-Dashboard (kein Build, ES-Module) — ideal für GitHub Pages.",
+  "type": "module",
+  "scripts": {
+    "test": "node test/parse.test.mjs && node test/state.test.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/spegioloni/gw-buddy.git"
+  },
+  "license": "ISC"
+}

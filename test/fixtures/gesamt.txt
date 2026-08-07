@@ -1,0 +1,61 @@
+Gesamtübersicht spegioloni	Flotten	=
+Planet	12:101:5	12:99:1	12:97:1	12:90:1	12:65:6	12:44:5	12:31:6	12:99:4	-	8
+Gebäude	-	-	Eisenspeicher Stufe 1 (00:24:38)	Kommandozentrale Stufe 8 (00:51:10)	Kommandozentrale Stufe 6 (01:02:38)	Eisenmine Stufe 16 (01:21:54)	Kommandozentrale Stufe 7 (01:24:53)	Schiffsfabrik Stufe 1 (00:08:30)	-	-
+Schiffsfabrik	18:22:19	-	-	7 Tage, 16:44:08	16 Tage, 09:55:36	17 Tage, 05:42:13	30 Tage, 08:45:35	-	-	-
+Punkte	2.544	310	39	36	555	344	133	4	-	3.966
+Rohstoffe
+Eisen	344.761	23.125	6.185	8.692	4.888	1.880	1.538	14.028	134.824	539.921
+Lutinum	117.549	50.925	3.523	430	1.746	695	203	6.663	71.987	253.722
+Wasser	203.057	0	1.425	3.370	2.243	2.317	11.181	823	30.664	255.080
+Wasserstoff	107.494	19.428	3.115	1.406	975	10.672	2.304	2.109	27.113	174.616
+Rohstoffförderung (pro Stunde)
+Eisen	16.925	397	281	1.035	1.754	2.327	1.754	199	-	24.671
+Lutinum	10.586	538	20	132	654	793	256	20	-	12.998
+Wasser	12.138	244	20	20	846	1.289	346	20	-	14.923
+Wasserstoff	5.114	117	0	0	362	267	28	0	-	5.888
+Wasserverbrauch	-11.736	-281	0	0	-749	-730	-142	0	-	-13.637
+Handelsposten-Lager
+Eisen	0	0	0	0	0	0	0	0	-	0
+Lutinum	0	0	0	0	0	0	0	0	-	0
+Wasser	186.450	0	0	0	0	0	0	0	-	186.450
+Wasserstoff	0	0	0	0	0	0	0	0	-	0
+Gebäude
+Kommandozentrale	22	6	6	7	5	10	6	1	-	7,88
+Forschungszentrum	14	0	0	0	0	0	1	0	-	1,88
+Handelsposten	6	0	1	0	0	0	1	0	-	1,00
+Eisenmine	39	6	5	10	13	15	13	4	-	13,13
+Lutinumraffinerie	39	9	0	4	10	11	6	0	-	9,88
+Bohrturm	30	4	0	0	8	10	5	0	-	7,13
+Chemiefabrik	14	2	0	0	1	5	3	0	-	3,13
+Erweiterte Chemiefabrik	12	1	0	0	3	2	0	0	-	2,25
+Eisenspeicher	19 (21.960.000)	3 (840.000)	0 (300.000)	0 (300.000)	2 (540.000)	4 (1.260.000)	1 (360.000)	0 (300.000)	-	3,63
+Lutinumspeicher	15 (13.800.000)	3 (840.000)	0 (300.000)	0 (300.000)	3 (840.000)	3 (840.000)	1 (360.000)	0 (300.000)	-	3,13
+Wassertanks	10 (6.300.000)	0 (300.000)	0 (300.000)	0 (300.000)	0 (300.000)	0 (300.000)	0 (300.000)	0 (300.000)	-	1,25
+Wasserstofftanks	10 (6.300.000)	1 (360.000)	0 (300.000)	0 (300.000)	3 (840.000)	4 (1.260.000)	0 (300.000)	0 (300.000)	-	2,25
+Schiffsfabrik	16	1	1	1	1	1	1	0	-	2,75
+Orbitale Verteidigungsstation	4	2	0	0	0	0	3	0	-	1,13
+Planetarer Schild	5	2	0	0	2	0	1	0	-	1,25
+Fusionsreaktor	5	0	0	0	1	0	0	0	-	0,75
+Schiffe
+Schakal	0	0	0	0	0	0	0	0	0	0
+Recycler	30	0	0	0	0	0	0	0	10	40
+Spionagesonde	197	0	0	0	0	0	20	0	54	271
+Renegade	0	0	0	0	0	0	0	0	0	0
+Raider	1	0	0	0	0	0	0	0	0	1
+Falcon	0	0	0	0	0	0	0	0	0	0
+Kolonisationsschiff	0	0	0	0	0	0	0	0	0	0
+Tjuger	0	0	0	0	0	0	0	0	0	0
+Cougar	0	0	0	0	0	0	1	0	4	5
+Longeagle V	24	0	0	0	0	0	0	0	86	110
+Kleines Handelsschiff	5	0	0	0	0	0	0	0	1	6
+Großes Handelsschiff	8	0	0	0	0	0	0	0	27	35
+Noah	0	0	0	0	0	0	0	0	0	0
+Longeagle X	0	0	0	0	0	0	0	0	0	0
+146,16 ckk	0,00 ckk	0,00 ckk	0,00 ckk	0,00 ckk	0,00 ckk	1,01 ckk	0,00 ckk	522,73 ckk	669,89 ckk
+Verteidigung
+Leichter Laserturm	0	0	0	0	0	0	0	0	-	0
+Laserturm	0	0	0	0	0	0	0	0	-	0
+EMP-Werfer	0	0	0	0	0	0	0	0	-	0
+Plasmaturm	0	0	0	0	0	0	0	0	-	0
+Raks	0	0	0	0	0	0	0	0	-	0
+0,00 ckk	0,00 ckk	0,00 ckk	0,00 ckk	0,00 ckk	0,00 ckk	0,00 ckk	0,00 ckk	-	0,00 ckk

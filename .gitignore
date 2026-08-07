@@ -1,8 +1,6 @@
-# Geheimer API-Token – niemals committen
-gw-token.txt
-*.token
-*.secret
-
 # OS / Editor
 .DS_Store
 Thumbs.db
+
+# Node (nur für Tests, kein Build)
+node_modules/
