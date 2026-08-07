@@ -151,13 +151,29 @@ export function parseUebersicht(text, ownPlanets = new Set()) {
     tradePost: {},
     ships: {},
     buildOrders: [],
+    // Wurde die Sektion "Gebäudeaufträge" überhaupt mitkopiert? Nur dann ist
+    // die Liste vollständig und darf ältere Gesamtübersicht-Daten überstimmen.
+    buildSection: false,
+    buildCount: null,
     counts: {},
     fleets: parseFleets(text, ownPlanets),
   };
 
-  // Aktiver Planet: Koordinate mit [M]-Marker (Hauptplanet).
+  // Aktiver Planet: Koordinate mit [M]-Marker (Hauptplanet) …
   const active = lines.find((l) => /^\d+:\d+:\d+\s*\[/.test(l.trim()));
   if (active) result.activePlanet = coordOf(active);
+  // … sonst die erste Koordinate direkt unter der "Planet"-Überschrift.
+  if (!result.activePlanet) {
+    const hdr = lines.findIndex((l) => /^Planet\s*$/i.test(l.trim()));
+    if (hdr !== -1) {
+      for (let i = hdr + 1; i < Math.min(hdr + 6, lines.length); i++) {
+        const c = lines[i].trim();
+        if (!c) continue;
+        if (RE_COORD.test(c)) { result.activePlanet = coordOf(c); }
+        break;
+      }
+    }
+  }
 
   // Navigations-/Summenzeile mit Zählern.
   const nav = lines.find((l) => /Eigene Flotten \(\d+\).*Fremde Flotten \(\d+\)/i.test(l));
@@ -189,7 +205,13 @@ export function parseUebersicht(text, ownPlanets = new Set()) {
   for (const raw of lines) {
     const line = raw.trim();
     if (!line) continue;
-    if (/^Gebäudeaufträge/i.test(line)) { section = 'build'; continue; }
+    if (/^Gebäudeaufträge/i.test(line)) {
+      section = 'build';
+      result.buildSection = true;
+      const m = /\((\d+)\)/.exec(line);
+      if (m) result.buildCount = +m[1];
+      continue;
+    }
     if (/^Forschungsaufträge/i.test(line)) { section = 'research'; continue; }
     if (/^Schiffe\s*\(/i.test(line)) { section = 'ships'; continue; }
     if (/^Verteidigungsanlagen/i.test(line)) { section = 'defense'; continue; }

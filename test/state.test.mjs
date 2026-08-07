@@ -64,5 +64,43 @@ const ni = A.nextImpact();
 console.log('nextImpact:', ni && (ni.start + ' -> ' + ni.ziel + ' in ' + Math.round((ni.at - serverNow()) / 1000) + 's'));
 ok(!!ni, 'nextImpact vorhanden');
 
+// Online-/Save-Fenster: gebündelte Zeitbereiche statt Einzelzeiten.
+const wins = A.saveWindows();
+console.log('Save-Fenster:', wins.map((w) => `${Math.round(w.durationSec / 60)}min/${w.impacts.length}x/${w.level}`).join(' '));
+ok(wins.length > 0, 'Save-Fenster vorhanden');
+ok(wins.every((w) => w.to > w.from), 'Fenster haben positive Dauer');
+ok(wins.every((w) => w.durationSec >= A.SAVE_LEAD_SEC), 'Fenster mind. so lang wie der Vorlauf');
+ok(wins.every((w, i) => i === 0 || w.from > wins[i - 1].to), 'Fenster überlappen sich nicht');
+ok(wins.some((w) => w.impacts.length > 1), 'dichte Einschläge werden gebündelt');
+ok(wins.some((w) => w.level === 'critical'), 'Fenster mit stationierter Flotte ist kritisch');
+
+const crits = A.criticalPoints();
+console.log('kritische Stellen:', crits.map((c) => c.kind).join(','));
+ok(crits.some((c) => c.kind === 'loss'), 'Verlustrisiko erkannt');
+ok(crits.findIndex((c) => c.level === 'warn') > crits.findIndex((c) => c.level === 'critical'),
+  'kritische Punkte stehen vor Warnungen');
+
+/* ---------- Regression: Bauaufträge aus der Übersichtsseite ---------- */
+// Die Übersichtsseite listet ALLE laufenden Bauaufträge und ist frischer als
+// die Gesamtübersicht — ein dort gelisteter Planet darf nie "frei" heißen.
+const rU2 = ingest(read('u2.txt'));
+ok(rU2.type === 'uebersicht', 'u2 als Übersichtsseite erkannt');
+ok(state.uebersicht.activePlanet === '12:99:4',
+  'aktiver Planet ohne [M]-Marker erkannt, got ' + state.uebersicht.activePlanet);
+ok(state.uebersicht.buildSection === true, 'Gebäudeaufträge-Sektion erkannt');
+ok(state.uebersicht.buildCount === 6, 'Auftragszähler 6, got ' + state.uebersicht.buildCount);
+
+const p994 = state.planets.get('12:99:4');
+console.log('12:99:4 Bauauftrag:', JSON.stringify(p994?.buildOrder));
+ok(p994?.buildOrder?.name === 'Kommandozentrale' && p994.buildOrder.level === 2,
+  '12:99:4 zeigt frischen Auftrag aus der Übersichtsseite');
+
+const fc2 = A.freeCapacity();
+console.log('freie Kapazität nach u2:', fc2.noBuild.join(','));
+for (const b of state.buildOrders) {
+  ok(!fc2.noBuild.includes(b.coord), `${b.coord} baut und darf nicht als frei gelten`);
+}
+ok(fc2.noBuild.length === 2, 'genau 2 freie Planeten, got ' + fc2.noBuild.length);
+
 console.log(`\n${fail === 0 ? '✅' : '❌'}  ${pass} ok, ${fail} fehlgeschlagen`);
 process.exit(fail === 0 ? 0 : 1);

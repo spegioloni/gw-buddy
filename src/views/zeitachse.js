@@ -43,7 +43,7 @@ export function renderZeitachse() {
   return `<div class="section">
     <div class="desc">Alle Ereignisse auf einer Achse — Feindeinschläge, eigene Flüge und Bau-/Forschungsabschlüsse. Marker je Typ, oben filterbar. Die Bänder sind die Online-Fenster aus der Lage.</div>
     ${controls(counts)}
-    ${bandLegend()}
+    ${bandLegend(wins)}
     ${gantt(shown, { windows: wins, hours: 6 })}
     ${list(shown)}
   </div>`;

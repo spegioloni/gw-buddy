@@ -184,49 +184,104 @@ details.fold .fbody{padding:0 15px 15px}
 .tl-controls button.on.build{border-color:var(--soon);color:var(--soon)}
 .tl-controls button.on.arrival,.tl-controls button.on.spy{border-color:var(--own);color:var(--own)}
 .tl-controls button.off{opacity:.4}
+/* ---------- Zeitachse: Chart ---------- */
 .gantt{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
-  padding:14px 14px 30px;overflow:hidden}
-.gantt .axis{position:relative;height:22px;border-bottom:1px solid var(--line2);margin-bottom:6px}
-.gantt .tick{position:absolute;top:0;font-family:var(--fontM);font-size:10px;color:var(--faint);
-  border-left:1px solid var(--line);height:100%;padding-left:4px}
-.gantt .now{position:absolute;top:0;bottom:0;width:2px;background:var(--brand);z-index:3;box-shadow:0 0 10px var(--brand)}
-.gantt .now b{position:absolute;top:-2px;left:4px;font-size:9px;color:var(--brand);font-family:var(--fontM)}
-.tl-row{position:relative;height:26px;margin:2px 0}
-.tl-row .lab{position:absolute;left:0;top:3px;font-family:var(--fontM);font-size:11px;color:var(--dim);z-index:2}
-.tl-mark{position:absolute;top:4px;transform:translateX(-50%);font-size:12px;cursor:default;z-index:2}
-.tl-mark.attack{color:var(--threat)} .tl-mark.build{color:var(--soon)}
-.tl-mark.arrival,.tl-mark.spy{color:var(--own)} .tl-mark.rueck{color:var(--dim)}
-.tl-mark.trade{color:var(--safe)} .tl-mark.research{color:var(--brand)}
+  padding:14px 16px 16px;overflow:hidden;--lab-w:132px}
+.gantt .axis{position:relative;height:20px;margin-left:var(--lab-w);
+  border-bottom:1px solid var(--line2);margin-bottom:2px}
+.gantt .tick{position:absolute;bottom:2px;font-family:var(--fontM);font-size:10px;
+  color:var(--faint);padding-left:5px;letter-spacing:.04em}
+.gantt .now{position:absolute;top:0;bottom:-9999px;width:2px;background:var(--brand);z-index:4;
+  box-shadow:0 0 8px var(--brand)}
+.gantt .now b{position:absolute;top:-13px;left:50%;transform:translateX(-50%);font-size:8.5px;
+  font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--brand);
+  font-family:var(--fontM);background:var(--panel);padding:0 4px;border-radius:3px}
 
-/* ---------- Zeitachse: Bänder & Save-Fenster ---------- */
-.tl-row .track{position:absolute;left:96px;right:0;top:0;bottom:0}
-.tl-body{position:relative}
-.tl-bands{position:absolute;left:96px;right:0;top:0;bottom:0;pointer-events:none;z-index:0}
-.tl-band{position:absolute;top:0;bottom:0;border-radius:5px;pointer-events:auto;
+.tl-body{position:relative;margin-left:var(--lab-w);padding-top:18px}
+.tl-grid,.tl-bands{position:absolute;inset:0;pointer-events:none}
+.tl-grid .gl{position:absolute;top:0;bottom:0;width:1px;
+  background:linear-gradient(180deg,var(--line2),color-mix(in srgb,var(--line2) 25%,transparent))}
+.tl-bands{z-index:1}
+
+/* Save-Fenster als Band über die volle Höhe */
+.tl-band{position:absolute;top:0;bottom:0;border-radius:6px;pointer-events:auto;
   border-left:2px solid;border-right:2px dashed}
-.tl-band.critical{background:color-mix(in srgb,var(--threat) 15%,transparent);
+.tl-band.critical{background:color-mix(in srgb,var(--threat) 14%,transparent);
   border-color:color-mix(in srgb,var(--threat) 70%,transparent)}
-.tl-band.warn{background:color-mix(in srgb,var(--soon) 11%,transparent);
+.tl-band.warn{background:color-mix(in srgb,var(--soon) 10%,transparent);
   border-color:color-mix(in srgb,var(--soon) 55%,transparent)}
 .tl-band.live{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--threat) 55%,transparent)}
-.tl-band .cap{position:absolute;top:3px;left:5px;font-family:var(--fontM);font-size:9.5px;
-  font-weight:600;white-space:nowrap;padding:1px 5px;border-radius:999px;
-  background:color-mix(in srgb,#05070f 78%,transparent)}
+.tl-band .cap{position:absolute;top:1px;left:4px;font-family:var(--fontM);font-size:9px;
+  font-weight:700;white-space:nowrap;padding:1px 5px;border-radius:999px;
+  background:color-mix(in srgb,#05070f 82%,transparent)}
 .tl-band.critical .cap{color:var(--threat)}
 .tl-band.warn .cap{color:var(--soon)}
-.tl-bands{padding-top:0}
-.tl-body{padding-top:16px}
-.tl-row.hit .lab{color:var(--threat)}
-.tl-mark.crit{font-size:14px;filter:drop-shadow(0 0 5px var(--threat))}
 
-.tl-legend{display:flex;gap:16px;flex-wrap:wrap;margin:0 0 10px;font-size:11.5px;color:var(--dim)}
+/* Zeilen */
+.tl-row{position:relative;margin:0;padding:4px 0;border-top:1px solid var(--line2)}
+.tl-row:first-of-type{border-top:0}
+.tl-row.alt{background:color-mix(in srgb,var(--panel2) 55%,transparent)}
+.tl-row.hit{background:color-mix(in srgb,var(--threat) 7%,transparent)}
+.tl-row .lab{position:absolute;left:calc(-1 * var(--lab-w));top:0;bottom:0;width:var(--lab-w);
+  display:flex;align-items:center;gap:5px;font-family:var(--fontM);font-size:11px;
+  color:var(--dim);z-index:3;padding-right:10px;
+  border-right:1px solid var(--line2);background:var(--panel)}
+.tl-row.alt .lab{background:color-mix(in srgb,var(--panel2) 55%,var(--panel))}
+.tl-row.hit .lab{background:color-mix(in srgb,var(--threat) 7%,var(--panel))}
+.tl-row .lab .n{font-style:normal;font-size:9.5px;color:var(--faint);
+  border:1px solid var(--line2);border-radius:999px;padding:0 5px;line-height:15px}
+.tl-row .lab .n.crit{color:var(--threat);border-color:color-mix(in srgb,var(--threat) 50%,transparent)}
+.tl-row .track{position:absolute;inset:0;z-index:2}
+
+/* Marker: Punkt auf der exakten Zeit + Icon + Uhrzeit */
+.tl-mark{position:absolute;display:inline-flex;align-items:center;gap:3px;height:18px;
+  padding:0 6px 0 3px;border-radius:999px;font-size:10.5px;font-family:var(--fontM);
+  white-space:nowrap;cursor:default;background:color-mix(in srgb,#0b1020 88%,transparent);
+  border:1px solid var(--line2);transform:translateX(-5px)}
+.tl-mark.flip{flex-direction:row-reverse;padding:0 3px 0 6px;transform:translateX(5px)}
+.tl-mark .dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex:none;
+  box-shadow:0 0 6px currentColor}
+.tl-mark i{font-style:normal;font-size:10px;line-height:1}
+.tl-mark em{font-style:normal;color:var(--dim);font-size:10px;letter-spacing:.02em}
+.tl-mark.attack{color:var(--threat)} .tl-mark.build{color:var(--soon)}
+.tl-mark.arrival,.tl-mark.spy{color:var(--own)} .tl-mark.rueck{color:var(--faint)}
+.tl-mark.trade{color:var(--safe)} .tl-mark.research{color:var(--brand)}
+.tl-mark.crit{border-color:color-mix(in srgb,var(--threat) 60%,transparent);
+  background:color-mix(in srgb,var(--threat) 18%,#0b1020);font-weight:700}
+.tl-mark.crit em{color:var(--threat)}
+.tl-more{position:absolute;transform:translateX(-50%);height:17px;line-height:15px;padding:0 7px;
+  border-radius:999px;font-family:var(--fontM);font-size:9.5px;color:var(--dim);
+  border:1px dashed var(--line2);background:var(--panel2);cursor:default}
+
+/* Legende */
+.tl-legend{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 10px;font-size:11px;color:var(--dim)}
 .tl-legend span{display:flex;align-items:center;gap:6px}
-.tl-legend .sw{width:16px;height:9px;border-radius:3px;display:inline-block}
+.tl-legend .sw{width:15px;height:9px;border-radius:3px;display:inline-block;flex:none}
 .tl-legend .sw.critical{background:color-mix(in srgb,var(--threat) 30%,transparent);
   border:1px solid color-mix(in srgb,var(--threat) 70%,transparent)}
 .tl-legend .sw.warn{background:color-mix(in srgb,var(--soon) 22%,transparent);
   border:1px solid color-mix(in srgb,var(--soon) 55%,transparent)}
 .tl-legend .sw.now{width:3px;background:var(--brand);height:12px;border-radius:2px}
+.tl-legend .sw.dot{width:8px;height:8px;border-radius:50%;box-shadow:0 0 6px currentColor}
+.tl-legend .sw.dot.attack{background:var(--threat);color:var(--threat)}
+.tl-legend .sw.dot.arrival{background:var(--own);color:var(--own)}
+.tl-legend .sw.dot.build{background:var(--soon);color:var(--soon)}
+
+@media (max-width:820px){
+  .gantt{--lab-w:104px;padding:12px 10px 12px}
+  .tl-row .lab{font-size:10px;padding-right:5px;gap:3px}
+  .tl-row .lab .n{font-size:8.5px;padding:0 3px;line-height:13px}
+}
+/* Schmale Spuren: nur Punkte, Uhrzeit im Tooltip */
+.gantt.dots .tl-mark{padding:0;gap:0;border:0;background:none;transform:translateX(-50%);
+  width:14px;height:14px;justify-content:center}
+.gantt.dots .tl-mark em{display:none}
+.gantt.dots .tl-mark .dot{display:none}
+.gantt.dots .tl-mark i{font-size:11px}
+.gantt.dots .tl-mark.crit i{font-size:13px;filter:drop-shadow(0 0 5px var(--threat))}
+/* Auf schmalen Spuren überlappen die Band-Beschriftungen — die Fensterliste
+   oberhalb nennt die Zeiten ohnehin. */
+.gantt.dots .tl-band .cap{display:none}
 
 /* ---------- Online-Fenster (Lage) ---------- */
 .win-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;

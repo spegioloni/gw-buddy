@@ -118,26 +118,48 @@ export function rebuild(wall) {
   orders.sort((a, b) => a.at - b.at);
   state.buildOrders = orders;
 
+  // 6) Bauaufträge auf die Planeten zurückschreiben. Die Übersichtsseite listet
+  //    ALLE laufenden Aufträge — ist sie dabei, ist sie maßgeblich und ein
+  //    Planet ohne Eintrag hat wirklich keinen Auftrag (auch wenn die ältere
+  //    Gesamtübersicht dort noch einen zeigt).
+  if (state.uebersicht?.buildSection) {
+    const byCoord = new Map(state.buildOrders.map((o) => [o.coord, o]));
+    for (const coord of byCoord.keys()) ensurePlanet(coord);
+    for (const [coord, p] of state.planets) {
+      const o = byCoord.get(coord);
+      p.buildOrder = o
+        ? { name: o.name, level: o.level, key: o.key, remainingSec: o.remainingSec }
+        : null;
+    }
+  }
+
   const parts = [];
   if (state.gesamt) parts.push(`${state.gesamt.planets.length} Planeten`);
   if (state.uebersicht) parts.push(`${state.fleets.length} Flotten`, `${state.buildOrders.length} Bauaufträge`);
   return { message: parts.join(' · ') || 'keine Daten' };
 }
 
+function newPlanet(coord) {
+  return {
+    coord, mine: state.ownPlanets.has(coord),
+    points: null, resources: {}, production: {}, waterUsage: null, tradePost: {},
+    buildings: {}, ships: {}, defense: {}, shipyardFreeSec: null, buildOrder: null,
+    fleets: [], stationedSource: null,
+  };
+}
+
+/** Planeten-Datensatz in state.planets sicherstellen. */
+function ensurePlanet(coord) {
+  if (!state.planets.has(coord)) state.planets.set(coord, newPlanet(coord));
+  return state.planets.get(coord);
+}
+
 function buildPlanets() {
   const map = new Map();
   const ensure = (coord) => {
-    if (!map.has(coord)) {
-      map.set(coord, {
-        coord, mine: state.ownPlanets.has(coord),
-        points: null, resources: {}, production: {}, waterUsage: null, tradePost: {},
-        buildings: {}, ships: {}, defense: {}, shipyardFreeSec: null, buildOrder: null,
-        fleets: [], stationedSource: null,
-      });
-    }
+    if (!map.has(coord)) map.set(coord, newPlanet(coord));
     return map.get(coord);
   };
-
   if (state.gesamt) {
     for (const [coord, g] of Object.entries(state.gesamt.byPlanet)) {
       const p = ensure(coord);

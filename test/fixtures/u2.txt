@@ -1,0 +1,108 @@
+GigraWars
+Eisen
+14.074
+Lutinum
+6.518
+Wasser
+878
+Wasserstoff
+2.109
+
+Planet 
+
+12:99:4
+ Übersicht
+ Konstruktion
+ Forschung
+ Schiffe/Türme
+ Handel
+ Technik
+Universum
+ Flotten
+ Galaxie
+ Events
+Allianz
+ Intern
+ Forum
+ Verwaltung
+Community
+ Nachrichten
+ Suche
+ Highscore
+Account
+ Statistik
+ Premium
+ Einstellungen
+ Logout
+Nachrichten
+12:50:18 - 07.08.2026
+Eigene Flotten (3) Fremde Flotten (16) Gebäude (117) Forschungen (12) Handel (4)
+Eigene Flotten Hinflug (2)
+00:16:52
+Angriff
+12:101:5
+12:101:6
+02:11:40
+Stationierung
+12:31:6
+12:65:6
+Eigene Flotten Rückflug (10)
+00:08:14
+Rückflug
+12:101:5
+12:99:3
+00:14:01
+Rückflug
+12:101:5
+12:104:1
+00:17:56
+Rückflug
+12:44:5
+12:44:20
+01:11:41
+Rückflug
+12:31:6
+12:31:5
+01:12:58
+Rückflug
+12:44:5
+12:44:4
+01:26:39
+Rückflug
+12:65:6
+12:65:5
+01:28:24
+Rückflug
+12:65:6
+12:65:1
+01:54:02
+Rückflug
+12:101:5
+12:101:6
+02:37:35
+Rückflug
+12:101:5
+12:99:1
+06:39:17
+Rückflug
+12:31:6
+12:65:6
+Gebäudeaufträge (6)
+00:00:00	Eisenspeicher Stufe 2	12:31:6
+00:19:49	Eisenspeicher Stufe 2	12:90:1
+00:57:28	Chemiefabrik Stufe 5	12:99:1
+01:21:37	Lutinumspeicher Stufe 4	12:44:5
+01:27:30	Kommandozentrale Stufe 2	12:99:4
+02:43:22	Kommandozentrale Stufe 7	12:65:6
+Forschungsaufträge
+Schiffe (0,00 ckk)
+Verteidigungsanlagen (0,00 ckk)
+Handelsposten Lager
+Keine Rohstoffe im Lager
+Punkte
+Gesamtübersicht
+Anzahl Planeten	8
+Punkte (Planeten)	4.012
+Punkte (Forschung)	2.034
+Gesamtpunkte	6.046
+Hilfe Spielregeln Support Status Impressum v3.16.11-beta

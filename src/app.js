@@ -141,6 +141,13 @@ function init() {
     if (btn) { toggleType(btn.dataset.tl); render(); }
   });
 
+  // Zeitachse hängt an der Fensterbreite (Marker mit/ohne Uhrzeit) -> neu rendern.
+  let resizeT;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeT);
+    resizeT = setTimeout(render, 150);
+  });
+
   setInterval(tick, 250);
   render();
 }

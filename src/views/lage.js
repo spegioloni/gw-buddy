@@ -163,7 +163,7 @@ export function renderLage() {
     <div class="section">
       <h2>▤ Zeitachse</h2>
       <div class="desc">Alle Ereignisse auf einer Achse. Die farbigen Bänder sind die Online-Fenster von oben.</div>
-      ${bandLegend()}
+      ${bandLegend(wins)}
       ${events.length ? gantt(events, { windows: wins }) : emptyState('Noch keine Ereignisse. Füge deine Übersichtsseite ein.')}
     </div>
     <div class="section">
