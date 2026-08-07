@@ -11,7 +11,7 @@ globalThis.localStorage = {
   removeItem: (k) => store.delete(k),
 };
 
-const { state, ingest, serverNow } = await import('../src/state.js');
+const { state, ingest, serverNow, clearAll } = await import('../src/state.js');
 const A = await import('../src/analysis.js');
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -102,5 +102,30 @@ for (const b of state.buildOrders) {
 }
 ok(fc2.noBuild.length === 2, 'genau 2 freie Planeten, got ' + fc2.noBuild.length);
 
+// --- g2.txt: Bauplatz und Schiffsfabrik sind unabhängig -------------------
+// Die Zeile "Schiffsfabrik" im Kopf ist die Restlaufzeit der Schiffsproduktion,
+// "-" heißt idle. Sie hat nichts mit dem Gebäude-Bauauftrag zu tun.
+clearAll();
+ingest(read('g2.txt'));
+const g2yard = [...state.planets].map(([c, p]) => `${c}=${p.shipyardFreeSec}`).join(' ');
+console.log('g2 shipyardFreeSec:', g2yard);
+ok(state.planets.get('12:101:5').shipyardFreeSec === 129661,
+  '12:101:5 Werft belegt (1 Tag, 12:01:01)');
+ok(state.planets.get('12:99:1').shipyardFreeSec === null, '12:99:1 Werft idle');
+ok(state.planets.get('12:97:1').shipyardFreeSec === null, '12:97:1 Werft idle');
+ok(state.planets.get('12:99:4').shipyardFreeSec === null, '12:99:4 Werft idle');
+ok(state.planets.get('12:101:5').buildings.shipFactory === 16,
+  'Gebäudestufe Schiffsfabrik nicht mit der Restlaufzeit verwechselt');
+
+const fc3 = A.freeCapacity();
+console.log('g2 noBuild:', fc3.noBuild.join(','), '| idleYard:', fc3.idleYard.join(','));
+ok(fc3.noBuild.join(',') === '12:97:1', 'nur 12:97:1 ohne Gebäude-Bauauftrag');
+ok(fc3.idleYard.join(',') === '12:99:1,12:97:1,12:99:4',
+  'drei idle Schiffsfabriken, got ' + fc3.idleYard.join(','));
+ok(fc3.any.length === 3, 'Union der freien Kapazitäten = 3, got ' + fc3.any.length);
+ok(fc3.idleYard.includes('12:99:4') && state.planets.get('12:99:4').buildOrder,
+  'idle Werft trotz laufendem Gebäudebau wird erkannt');
+
 console.log(`\n${fail === 0 ? '✅' : '❌'}  ${pass} ok, ${fail} fehlgeschlagen`);
 process.exit(fail === 0 ? 0 : 1);
+

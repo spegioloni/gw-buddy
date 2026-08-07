@@ -166,6 +166,8 @@ textarea#input{width:100%;min-height:120px;resize:vertical;background:var(--bg);
 .cap-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
 .cap{padding:12px;border-radius:var(--r-sm);background:var(--panel);border:1px dashed color-mix(in srgb,var(--safe) 40%,transparent)}
 .cap .t{font-size:11px;color:var(--safe);font-family:var(--fontM);text-transform:uppercase;letter-spacing:.1em}
+.cap-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.cap-tags .chip{font-size:10.5px;padding:2px 7px}
 
 /* ---------- Collapsible ---------- */
 details.fold{border:1px solid var(--line);border-radius:var(--r);background:var(--panel);margin-top:12px}
@@ -186,7 +188,7 @@ details.fold .fbody{padding:0 15px 15px}
 .tl-controls button.off{opacity:.4}
 /* ---------- Zeitachse: Chart ---------- */
 .gantt{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
-  padding:14px 16px 16px;overflow:hidden;--lab-w:132px}
+  padding:14px 16px 16px;overflow:hidden;--lab-w:196px}
 .gantt .axis{position:relative;height:20px;margin-left:var(--lab-w);
   border-bottom:1px solid var(--line2);margin-bottom:2px}
 .gantt .tick{position:absolute;bottom:2px;font-family:var(--fontM);font-size:10px;
@@ -225,12 +227,43 @@ details.fold .fbody{padding:0 15px 15px}
 .tl-row .lab{position:absolute;left:calc(-1 * var(--lab-w));top:0;bottom:0;width:var(--lab-w);
   display:flex;align-items:center;gap:5px;font-family:var(--fontM);font-size:11px;
   color:var(--dim);z-index:3;padding-right:10px;
-  border-right:1px solid var(--line2);background:var(--panel)}
+  border-right:1px solid var(--line2);background:var(--panel);overflow:hidden}
+.tl-row .lab .coord{flex:none}
 .tl-row.alt .lab{background:color-mix(in srgb,var(--panel2) 55%,var(--panel))}
 .tl-row.hit .lab{background:color-mix(in srgb,var(--threat) 7%,var(--panel))}
+/* Randakzent links: freie Kapazität (grün) bzw. Flotte im Feuer (rot). */
+.tl-row.idlecap .lab{box-shadow:inset 2px 0 0 color-mix(in srgb,var(--safe) 55%,transparent)}
+.tl-row.risk .lab{box-shadow:inset 2px 0 0 var(--threat)}
 .tl-row .lab .n{font-style:normal;font-size:9.5px;color:var(--faint);
   border:1px solid var(--line2);border-radius:999px;padding:0 5px;line-height:15px}
 .tl-row .lab .n.crit{color:var(--threat);border-color:color-mix(in srgb,var(--threat) 50%,transparent)}
+.tl-row .lab .n.zero{opacity:.45;border-style:dashed}
+.tl-row.quiet .lab .coord{opacity:.72}
+.tl-row.quiet{opacity:.92}
+
+/* Status-Ampeln je Planet: Flotte · Bauplatz · Werft */
+.tl-row .lab .ind{margin-left:auto;display:flex;align-items:center;gap:3px;flex:none}
+.tl-row .lab .ind.foreign{color:var(--faint);opacity:.4;letter-spacing:1px;font-size:10px;
+  padding-right:2px}
+.ix{font-style:normal;display:inline-flex;align-items:center;gap:2px;height:16px;
+  padding:0 4px;border-radius:5px;font-size:10px;line-height:1;
+  border:1px solid transparent;background:color-mix(in srgb,var(--panel2) 70%,transparent);
+  color:var(--faint);cursor:default}
+.ix b{font-weight:700;font-size:8.5px;letter-spacing:.02em}
+.ix.off{opacity:.42}
+.ix.none{opacity:.14}
+.ix.on.free{color:var(--safe);border-color:color-mix(in srgb,var(--safe) 40%,transparent);
+  background:color-mix(in srgb,var(--safe) 12%,transparent)}
+.ix.fleet.on{color:var(--own);border-color:color-mix(in srgb,var(--own) 40%,transparent);
+  background:color-mix(in srgb,var(--own) 13%,transparent)}
+.ix.fleet.risk{color:var(--threat);border-color:color-mix(in srgb,var(--threat) 65%,transparent);
+  background:color-mix(in srgb,var(--threat) 18%,transparent);font-weight:700;
+  animation:ixpulse 1.9s ease-in-out infinite}
+@keyframes ixpulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--threat) 45%,transparent)}
+  50%{box-shadow:0 0 7px 1px color-mix(in srgb,var(--threat) 45%,transparent)}}
+@media (prefers-reduced-motion:reduce){.ix.fleet.risk{animation:none}}
+.ix.mini{height:14px;font-size:9.5px;padding:0 3px}
+.tl-legend .sep{width:1px;height:12px;background:var(--line2);padding:0}
 .tl-row .track{position:absolute;inset:0;z-index:2}
 
 /* Marker: Punkt auf der exakten Zeit + Icon + Uhrzeit */
@@ -268,9 +301,12 @@ details.fold .fbody{padding:0 15px 15px}
 .tl-legend .sw.dot.build{background:var(--soon);color:var(--soon)}
 
 @media (max-width:820px){
-  .gantt{--lab-w:104px;padding:12px 10px 12px}
+  .gantt{--lab-w:128px;padding:12px 10px 12px}
   .tl-row .lab{font-size:10px;padding-right:5px;gap:3px}
-  .tl-row .lab .n{font-size:8.5px;padding:0 3px;line-height:13px}
+  .tl-row .lab .n{display:none}
+  .tl-row .lab .ind{gap:2px}
+  .ix{height:15px;padding:0 2.5px;font-size:9.5px;gap:1px}
+  .ix b{font-size:8px}
 }
 /* Schmale Spuren: nur Punkte, Uhrzeit im Tooltip */
 .gantt.dots .tl-mark{padding:0;gap:0;border:0;background:none;transform:translateX(-50%);
@@ -282,6 +318,7 @@ details.fold .fbody{padding:0 15px 15px}
 /* Auf schmalen Spuren überlappen die Band-Beschriftungen — die Fensterliste
    oberhalb nennt die Zeiten ohnehin. */
 .gantt.dots .tl-band .cap{display:none}
+.gantt.dots .ix{height:14px}
 
 /* ---------- Online-Fenster (Lage) ---------- */
 .win-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;

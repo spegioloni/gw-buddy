@@ -54,7 +54,7 @@ function signals(threats) {
     <div class="sig t"><div class="k">Bedrohte Planeten</div><div class="v">${threatened}</div><div class="sub">${state.fleets.filter((e) => e.hostile).length} Angriffe gesamt</div></div>
     <div class="sig o"><div class="k">Eigene Flotten unterwegs</div><div class="v">${inTransit}</div><div class="sub">Hin- &amp; Rückflüge</div></div>
     <div class="sig s"><div class="k">Nächster Bau fertig</div><div class="v cd" data-at="${nextBuild ? nextBuild.at : ''}">${nextBuild ? '' : '–'}</div><div class="sub">${nextBuild ? `${esc(nextBuild.name)} · ${coordChip(nextBuild.coord)}` : 'kein Auftrag'}</div></div>
-    <div class="sig f"><div class="k">Freie Kapazität</div><div class="v">${fc.noBuild.length}</div><div class="sub">${fc.idleYard.length} Schiffsfabrik(en) idle</div></div>
+    <div class="sig f"><div class="k">Freie Kapazität</div><div class="v">${fc.any.length}</div><div class="sub">${fc.noBuild.length}× Bauplatz · ${fc.idleYard.length}× Schiffsfabrik</div></div>
   </div>`;
 }
 
@@ -147,10 +147,18 @@ export function renderLage() {
     ? `<div class="list">${threatened.map(threatCard).join('')}</div>`
     : emptyState('Keine bedrohten eigenen Planeten.');
 
-  const capSection = fc.noBuild.length
-    ? `<div class="cap-grid">${fc.noBuild.map((c) => {
+  const capSection = fc.any.length
+    ? `<div class="cap-grid">${fc.any.map((c) => {
+        const noBuild = fc.noBuild.includes(c);
         const idle = fc.idleYard.includes(c);
-        return `<div class="cap"><div class="t">frei</div>${coordChip(c, 'mine')}<div class="sub" style="font-size:11.5px;color:var(--dim);margin-top:4px">kein Bauauftrag${idle ? ' · Schiffsfabrik idle' : ''}</div></div>`;
+        const order = state.planets.get(c)?.buildOrder;
+        return `<div class="cap"><div class="t">${noBuild && idle ? 'Bau + Werft' : noBuild ? 'Bauplatz' : 'Werft'} frei</div>${coordChip(c, 'mine')}
+          <div class="cap-tags">
+            ${noBuild
+              ? '<span class="chip free">kein Bauauftrag</span>'
+              : `<span class="chip">baut ${esc(order?.name ?? '…')}</span>`}
+            ${idle ? '<span class="chip free">Schiffsfabrik idle</span>' : ''}
+          </div></div>`;
       }).join('')}</div>`
     : emptyState('Alle Planeten bauen gerade.');
 
@@ -162,7 +170,7 @@ export function renderLage() {
     </div>
     <div class="section">
       <h2>▤ Zeitachse</h2>
-      <div class="desc">Alle Ereignisse auf einer Achse. Die farbigen Bänder sind die Online-Fenster von oben.</div>
+      <div class="desc">Alle Ereignisse auf einer Achse. Die farbigen Bänder sind die Online-Fenster von oben. Links je Planet drei Ampeln: <b>⬟ Flotte</b> stationiert (rot = steht im Einschlag), <b>⌂ Bauplatz</b> und <b>⚒ Werft</b> — grün heißt frei. Eigene Planeten ohne Ereignisse stehen unten, damit du freie Kapazität auf einen Blick siehst.</div>
       ${bandLegend(wins)}
       ${events.length ? gantt(events, { windows: wins }) : emptyState('Noch keine Ereignisse. Füge deine Übersichtsseite ein.')}
     </div>
@@ -178,7 +186,7 @@ export function renderLage() {
     </div>
     <div class="section">
       <h2>◇ Freie Kapazität</h2>
-      <div class="desc">Planeten ohne laufenden Bauauftrag — hier kannst du etwas starten.</div>
+      <div class="desc">Zwei unabhängige Dinge: der <b>Bauplatz</b> (Gebäude-Warteschlange) und die <b>Schiffsfabrik</b>. Ein Planet kann ein Gebäude bauen und trotzdem eine leere Werft haben.</div>
       ${capSection}
     </div>`;
 }

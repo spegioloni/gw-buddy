@@ -2,8 +2,9 @@
 // Ziel: auf einen Blick lesbar — Stundenraster, beschriftete Marker,
 // überlappungsfreie Stapelung je Planet und Save-Fenster als Bänder.
 import { state, serverNow } from '../state.js';
-import { timelineTypes, saveWindows } from '../analysis.js';
-import { coordChip, hhmm, esc, durLong } from '../util/time.js';
+import { timelineTypes, saveWindows, planetStatus } from '../analysis.js';
+import { coordChip, hhmm, esc, durLong, num } from '../util/time.js';
+import { deLabel } from '../domain.js';
 import { emptyState } from './components.js';
 
 const LANE_H = 21;          // Höhe einer Marker-Spur (beschriftet)
@@ -16,8 +17,63 @@ const LABEL_W_MIN = 430;    // schmalere Spuren zeigen nur Punkte
 /** Verfügbare Spurbreite abschätzen — bestimmt, ob Zeitlabels hineinpassen. */
 function trackWidth() {
   const vw = typeof window === 'undefined' ? 1280 : window.innerWidth;
-  const labW = vw <= 820 ? 104 : 132;
+  const labW = vw <= 820 ? 128 : 196;
   return Math.max(180, Math.min(vw, 1400) - 44 - labW);
+}
+
+/* ---------- Status-Indikatoren je Planet ---------- */
+
+/** Kompakte Stückzahl: 1240 -> "1.2k". */
+function compact(n) {
+  if (n >= 10000) return Math.round(n / 1000) + 'k';
+  if (n >= 1000) return (n / 1000).toFixed(1).replace('.', ',') + 'k';
+  return String(n);
+}
+
+const relTime = (at) => (at == null ? '' : ` (fertig ${hhmm(at)})`);
+
+/**
+ * Drei Ampeln pro Planetenzeile: Flotte · Bauplatz · Werft.
+ * Leuchtend = handlungsrelevant (Flotte steht da / Platz ist frei),
+ * matt = belegt, rot = Flotte steht in einem Einschlag.
+ * @param coord   Planetenkoordinate
+ * @param atRisk  true, wenn auf diesem Planeten ein Einschlag ansteht
+ */
+function indicators(coord, atRisk) {
+  const s = planetStatus(coord);
+  if (!s.mine) {
+    return '<span class="ind foreign" title="Fremder Planet — keine eigenen Daten">···</span>';
+  }
+
+  const st = s.stationed;
+  const shipTxt = st.ships.length
+    ? st.ships.slice(0, 3).map(([k, n]) => `${num(n)} ${deLabel.ship(k)}`).join(', ')
+    : 'keine Schiffe';
+  const fleetCls = !st.hasAny ? 'off' : atRisk ? 'risk' : 'on';
+  const fleetTitle = st.hasAny
+    ? `Flotte stationiert: ${shipTxt}${st.defTotal ? ` · ${num(st.defTotal)} Verteidigung` : ''}${atRisk ? ' — steht beim Einschlag im Feuer!' : ''}`
+    : 'Nichts stationiert — hier ist nichts zu verlieren';
+  const fleetNum = st.total ? compact(st.total) : st.defTotal ? '◇' : '';
+
+  const b = s.build;
+  const bCls = b.free ? 'on free' : 'off';
+  const bTitle = b.free
+    ? 'Bauplatz frei — kein Gebäudeauftrag läuft'
+    : `Bauplatz belegt: ${b.name} → Stufe ${b.level}${relTime(b.at)}`;
+
+  const y = s.yard;
+  const yCls = y.none ? 'none' : y.free ? 'on free' : 'off';
+  const yTitle = y.none
+    ? 'Keine Schiffsfabrik auf diesem Planeten'
+    : y.free
+      ? `Werft frei — Schiffsfabrik Stufe ${y.level} baut nichts`
+      : `Werft belegt${relTime(y.at)}`;
+
+  return `<span class="ind">
+    <i class="ix fleet ${fleetCls}" title="${esc(fleetTitle)}">⬟${fleetNum ? `<b>${fleetNum}</b>` : ''}</i>
+    <i class="ix build ${bCls}" title="${esc(bTitle)}">⌂</i>
+    <i class="ix yard ${yCls}" title="${esc(yTitle)}">⚒</i>
+  </span>`;
 }
 
 /** Marker so auf Spuren verteilen, dass sich die Beschriftungen nicht überlappen. */
@@ -96,12 +152,20 @@ export function gantt(events, opts = {}) {
     if (!byPlanet.has(e.coord)) byPlanet.set(e.coord, []);
     byPlanet.get(e.coord).push(e);
   }
+  // Eigene Planeten ohne Ereignisse trotzdem zeigen — die Indikatoren sind
+  // genau dort interessant (freier Bauplatz, leere Werft, ungeschützte Flotte).
+  if (opts.allOwn !== false) {
+    for (const c of state.ownPlanets) if (!byPlanet.has(c)) byPlanet.set(c, []);
+  }
   const hitCoords = new Set(windows.flatMap((w) => w.coords));
   const rows = [...byPlanet.entries()]
     .sort((a, b) => {
       const ah = hitCoords.has(a[0]) ? 0 : 1, bh = hitCoords.has(b[0]) ? 0 : 1;
       if (ah !== bh) return ah - bh;
-      return Math.min(...a[1].map((e) => e.at)) - Math.min(...b[1].map((e) => e.at));
+      const ae = a[1].length ? Math.min(...a[1].map((e) => e.at)) : Infinity;
+      const be = b[1].length ? Math.min(...b[1].map((e) => e.at)) : Infinity;
+      if (ae !== be) return ae - be;
+      return a[0].localeCompare(b[0]);
     })
     .map(([coord, evs], rowIndex) => {
       const { placed, overflow, laneCount } = packLanes(evs, pct, minPct);
@@ -117,8 +181,18 @@ export function gantt(events, opts = {}) {
         : '';
       const height = (laneCount + (overflow.length ? 1 : 0)) * laneH;
       const attacks = evs.filter((e) => e.type === 'attack').length;
-      return `<div class="tl-row${rowIndex % 2 ? ' alt' : ''}${hitCoords.has(coord) ? ' hit' : ''}" style="height:${height}px">
-        <span class="lab">${coordChip(coord, state.ownPlanets.has(coord) ? 'mine' : '')}${attacks ? `<i class="n crit">${attacks}⚔</i>` : `<i class="n">${evs.length}</i>`}</span>
+      const st = planetStatus(coord);
+      const risk = hitCoords.has(coord) && !!st.stationed?.hasAny;
+      const flags = [
+        risk ? 'risk' : '',
+        st.mine && (st.build.free || st.yard.free) ? 'idlecap' : '',
+        evs.length ? '' : 'quiet',
+      ].filter(Boolean).join(' ');
+      const count = evs.length
+        ? (attacks ? `<i class="n crit">${attacks}⚔</i>` : `<i class="n">${evs.length}</i>`)
+        : '<i class="n zero" title="keine Ereignisse im Zeitfenster">–</i>';
+      return `<div class="tl-row${rowIndex % 2 ? ' alt' : ''}${hitCoords.has(coord) ? ' hit' : ''}${flags ? ' ' + flags : ''}" style="height:${height}px">
+        <span class="lab">${coordChip(coord, state.ownPlanets.has(coord) ? 'mine' : '')}${count}${indicators(coord, risk)}</span>
         <span class="track">${marks}${more}</span></div>`;
     }).join('');
 
@@ -145,6 +219,11 @@ export function bandLegend(windows) {
   items.push('<span><i class="sw dot attack"></i> Angriff</span>');
   items.push('<span><i class="sw dot arrival"></i> eigene Flotte</span>');
   items.push('<span><i class="sw dot build"></i> Bau fertig</span>');
+  items.push(`<span class="sep"></span>
+    <span><i class="ix fleet on mini">⬟</i> Flotte stationiert <i class="ix fleet risk mini">⬟</i> im Feuer</span>
+    <span><i class="ix build on free mini">⌂</i> Bauplatz frei</span>
+    <span><i class="ix yard on free mini">⚒</i> Werft frei</span>
+    <span><i class="ix off mini">⌂</i> belegt</span>`);
   return `<div class="tl-legend">${items.join('')}</div>`;
 }
 

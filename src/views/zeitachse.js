@@ -41,7 +41,7 @@ export function renderZeitachse() {
   const shown = all.filter((e) => activeTypes.has(e.type));
   const wins = saveWindows();
   return `<div class="section">
-    <div class="desc">Alle Ereignisse auf einer Achse — Feindeinschläge, eigene Flüge und Bau-/Forschungsabschlüsse. Marker je Typ, oben filterbar. Die Bänder sind die Online-Fenster aus der Lage.</div>
+    <div class="desc">Alle Ereignisse auf einer Achse — Feindeinschläge, eigene Flüge und Bau-/Forschungsabschlüsse. Marker je Typ, oben filterbar. Die Bänder sind die Online-Fenster aus der Lage. Die Ampeln links zeigen je Planet: <b>⬟ Flotte</b> stationiert, <b>⌂ Bauplatz</b> frei, <b>⚒ Werft</b> frei.</div>
     ${controls(counts)}
     ${bandLegend(wins)}
     ${gantt(shown, { windows: wins, hours: 6 })}

@@ -52,15 +52,56 @@ export function stationedSummary(planet) {
   return { ships, defense, total, defTotal, hasAny: total + defTotal > 0 };
 }
 
-/** Planeten mit freier Bau-/Schiffsfabrik-Kapazität. */
+/**
+ * Freie Kapazität — zwei unabhängige Dinge:
+ *  - noBuild:  kein laufender Gebäude-Bauauftrag
+ *  - idleYard: Schiffsfabrik baut gerade nichts
+ * Ein Planet kann in beiden, einem oder keinem Topf sein.
+ */
 export function freeCapacity() {
   const noBuild = [], idleYard = [];
+  const lvl = (v) => (v && typeof v === 'object' ? v.level : v);
   for (const [coord, p] of state.planets) {
     if (!p.mine) continue;
     if (!p.buildOrder) noBuild.push(coord);
-    if (p.shipyardFreeSec == null && ('shipFactory' in p.buildings || state.gesamt)) idleYard.push(coord);
+    // Nur sinnvoll, wenn dort überhaupt eine Schiffsfabrik steht.
+    if (lvl(p.buildings?.shipFactory) >= 1 && p.shipyardFreeSec == null) idleYard.push(coord);
   }
-  return { noBuild, idleYard };
+  return { noBuild, idleYard, any: [...new Set([...noBuild, ...idleYard])] };
+}
+
+/**
+ * Status-Indikatoren eines Planeten für die Zeitachse — bewusst grob:
+ * „steht da was?", „ist der Bauplatz frei?", „ist die Werft frei?".
+ * Fremde Planeten liefern {mine:false} und bekommen keine Indikatoren.
+ * @returns {{mine:boolean, stationed?:object, build?:object, yard?:object}}
+ */
+export function planetStatus(coord) {
+  const p = state.planets.get(coord);
+  const mine = state.ownPlanets.has(coord);
+  if (!mine || !p) return { mine: false };
+
+  const lvl = (v) => (v && typeof v === 'object' ? v.level : v);
+  const ref = state.refAt ?? serverNow();
+
+  const order = state.buildOrders.find((o) => o.coord === coord) || null;
+  const build = p.buildOrder || order
+    ? {
+        free: false,
+        name: order?.name ?? p.buildOrder.name,
+        level: order?.level ?? p.buildOrder.level,
+        at: order?.at ?? (p.buildOrder.remainingSec != null ? ref + p.buildOrder.remainingSec * 1000 : null),
+      }
+    : { free: true };
+
+  const yardLvl = lvl(p.buildings?.shipFactory) || 0;
+  const yard = yardLvl < 1
+    ? { none: true }
+    : p.shipyardFreeSec == null
+      ? { free: true, level: yardLvl }
+      : { free: false, level: yardLvl, at: ref + p.shipyardFreeSec * 1000 };
+
+  return { mine: true, stationed: stationedSummary(p), build, yard };
 }
 
 /* ---------- Online-/Save-Fenster ---------- */
