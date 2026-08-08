@@ -170,7 +170,7 @@ export function renderLage() {
     </div>
     <div class="section">
       <h2>▤ Zeitachse</h2>
-      <div class="desc">Alle Ereignisse auf einer Achse. Die farbigen Bänder sind die Online-Fenster von oben. Links je Planet drei Ampeln: <b>⬟ Flotte</b> stationiert (rot = steht im Einschlag), <b>⌂ Bauplatz</b> und <b>⚒ Werft</b> — grün heißt frei. Eigene Planeten ohne Ereignisse stehen unten, damit du freie Kapazität auf einen Blick siehst.</div>
+      <div class="desc">Alle Ereignisse auf einer Achse. Die Leiste direkt unter der Achse zeigt die Online-Fenster von oben — getönt ist nur das laufende bzw. nächste. Der sichtbare Zeitraum ist links oben umstellbar; was danach kommt, steht als <b>+n▸</b> am rechten Rand. Links je Planet drei Statuschips — <b>⬟ Flotte</b> (rot = steht im Einschlag), <b>⌂ Bauplatz</b> und <b>⚒ Werft</b>: grün <b>frei</b>, orange = belegt mit Restzeit. Planeten ohne Ereignisse stehen gesammelt unter dem Chart.</div>
       ${bandLegend(wins)}
       ${events.length ? gantt(events, { windows: wins }) : emptyState('Noch keine Ereignisse. Füge deine Übersichtsseite ein.')}
     </div>

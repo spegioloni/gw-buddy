@@ -6,6 +6,7 @@ import { renderLage } from './views/lage.js';
 import { renderBauen } from './views/bauen.js';
 import { renderFlotten } from './views/flotten.js';
 import { renderZeitachse, toggleType } from './views/zeitachse.js';
+import { setZoom } from './views/timeline.js';
 import { DEMO_GESAMT, DEMO_UEBERSICHT } from './demo.js';
 
 const $ = (s) => document.querySelector(s);
@@ -135,10 +136,12 @@ function init() {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); analyze(); }
   });
 
-  // Zeitachse-Filter (Event-Delegation).
+  // Zeitachse-Filter und Zoom (Event-Delegation).
   $('#view').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-tl]');
-    if (btn) { toggleType(btn.dataset.tl); render(); }
+    if (btn) { toggleType(btn.dataset.tl); render(); return; }
+    const zoom = e.target.closest('[data-tlzoom]');
+    if (zoom) { setZoom(zoom.dataset.tlzoom); render(); }
   });
 
   // Zeitachse hängt an der Fensterbreite (Marker mit/ohne Uhrzeit) -> neu rendern.

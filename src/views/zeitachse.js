@@ -41,10 +41,10 @@ export function renderZeitachse() {
   const shown = all.filter((e) => activeTypes.has(e.type));
   const wins = saveWindows();
   return `<div class="section">
-    <div class="desc">Alle Ereignisse auf einer Achse — Feindeinschläge, eigene Flüge und Bau-/Forschungsabschlüsse. Marker je Typ, oben filterbar. Die Bänder sind die Online-Fenster aus der Lage. Die Ampeln links zeigen je Planet: <b>⬟ Flotte</b> stationiert, <b>⌂ Bauplatz</b> frei, <b>⚒ Werft</b> frei.</div>
+    <div class="desc">Alle Ereignisse auf einer Achse — Feindeinschläge, eigene Flüge und Bau-/Forschungsabschlüsse. Marker je Typ, oben filterbar. Die Leiste unter der Achse zeigt die Online-Fenster aus der Lage; getönt ist nur das laufende bzw. nächste. Statuschips links je Planet: <b>⬟ Flotte</b>, <b>⌂ Bauplatz</b>, <b>⚒ Werft</b> — grün frei, orange belegt mit Restzeit. Uhrzeit steht nur an Einschlägen, sonst im Tooltip.</div>
     ${controls(counts)}
     ${bandLegend(wins)}
-    ${gantt(shown, { windows: wins, hours: 6 })}
+    ${gantt(shown, { windows: wins })}
     ${list(shown)}
   </div>`;
 }

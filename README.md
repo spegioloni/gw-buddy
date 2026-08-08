@@ -54,9 +54,10 @@ hochgeladen.
     Einzelzeiten: pro Einschlag 10 min Vorlauf, dicht aufeinanderfolgende
     Einschläge werden zu *einer* Session gebündelt. Je Fenster: Start–Ende,
     Dauer, Countdown, betroffene Planeten und die Pause davor.
-  - **Zeitachse** – direkt eingebettet, mit den Online-Fenstern als farbige
-    Bänder (rot = Flotte steht im Feuer, gelb = Einschlag ohne stationierte
-    Flotte). Angegriffene Planeten stehen oben.
+  - **Zeitachse** – direkt eingebettet, mit den Online-Fenstern als Leiste
+    unter der Achse (rot = Flotte steht im Feuer, gelb = Einschlag ohne
+    stationierte Flotte); getönt ist nur das laufende bzw. nächste Fenster.
+    Angegriffene Planeten stehen oben, ruhige gesammelt darunter.
   - **Kritische Stellen** – nach Schweregrad sortiert: Verlustrisiko
     (Schiffe stehen beim Einschlag da), eigene Landung kurz vor dem
     Einschlag, Rückflüge die zu spät kommen, zeitgleiche Einschläge.
@@ -69,8 +70,11 @@ hochgeladen.
   Planeten stehen oben.
 - **Zeitachse** – dieselbe Achse wie in der Lage, nur größer und filterbar:
   alle Ereignisse (Angriffe, Spionage, eigene Hin-/Rückflüge, Handel,
-  Bau-/Forschungsabschlüsse) mit Marker je Typ, Typ-Filtern, den
-  Online-Fenster-Bändern und einer chronologischen Liste darunter.
+  Bau-/Forschungsabschlüsse) mit Marker je Typ, Typ-Filtern, umstellbarem
+  Zeitfenster (3/6/12 h oder alles), der Online-Fenster-Leiste und einer
+  chronologischen Liste darunter. Die Uhrzeit steht nur an Einschlägen am
+  Marker, sonst im Tooltip; was rechts aus dem Zeitfenster fällt, wird je
+  Planet als **+n▸** gezählt.
 
 Auf schmalen Bildschirmen (≤ 820 px) wird aus der Desktop-Tabellen-Matrix eine
 Kartenansicht pro Planet, und die Tab-Leiste wird zum Burger-Menü.
@@ -94,7 +98,7 @@ src/
     time.js           Anzeige-Helfer (Uhrzeit, Countdown, Zahlenformat, Koordinaten-Chip)
   views/
     lage.js, bauen.js, flotten.js, zeitachse.js, components.js
-    timeline.js       geteilter Gantt-Renderer (Lage + Zeitachse) inkl. Fenster-Bänder
+    timeline.js       geteilter Gantt-Renderer (Lage + Zeitachse) inkl. Zoom und Fenster-Leiste
   app.js             Bootstrap: Tabs, Tick-Loop, Alarme, Drawer, Toasts
 test/
   parse.test.mjs      Parser-Regressionstest gegen echte Pastes
