@@ -74,7 +74,9 @@ function tick() {
   document.querySelectorAll('.gantt[data-from]').forEach((g) => {
     const from = +g.dataset.from, span = +g.dataset.span;
     const nowLine = g.querySelector('.now');
-    if (nowLine && span) nowLine.style.left = ((now - from) / span * 100).toFixed(2) + '%';
+    // Der "jetzt"-Strich zeigt die reale Client-Uhrzeit, nicht die
+    // (ggf. per Snapshot-Offset korrigierte) Serverzeit.
+    if (nowLine && span) nowLine.style.left = ((Date.now() - from) / span * 100).toFixed(2) + '%';
   });
 
   checkAlarms(now);

@@ -2,7 +2,7 @@
 // Ziel: auf einen Blick lesbar — Stundenraster, beschriftete Marker,
 // überlappungsfreie Stapelung je Planet und Save-Fenster als Bänder.
 import { state, serverNow } from '../state.js';
-import { timelineTypes, saveWindows, planetStatus, plunderRisk, stationedSummary, PLUNDER_RESOURCES } from '../analysis.js';
+import { timelineTypes, saveWindows, planetStatus, plunderRisk, stationedSummary, threatAnalysis, PLUNDER_RESOURCES } from '../analysis.js';
 import { coordChip, hhmm, esc, durLong, num } from '../util/time.js';
 import { deLabel } from '../domain.js';
 import { emptyState } from './components.js';
@@ -298,6 +298,12 @@ export function gantt(events, opts = {}) {
     })()
     : '';
 
+  // Der eigentlich kritische Moment ist nicht der ganze Lead-Time-Block,
+  // sondern die Lücke zwischen der letzten eigenen Flottenankunft und dem
+  // nächsten Einschlag auf demselben Planeten — die Flotte steht ab der
+  // Landung im Feuer, bis der Angriff einschlägt (oder sie vorher wegfliegt).
+  const threatByCoord = new Map(threatAnalysis().map((t) => [t.coord, t]));
+
   // Zeilen je Planet: angegriffene zuerst, dann nach frühestem Ereignis.
   const byPlanet = new Map();
   for (const e of visible) {
@@ -333,6 +339,19 @@ export function gantt(events, opts = {}) {
     const inWin = evs.filter((e) => e.at <= to);
     const later = evs.filter((e) => e.at > to);
     hiddenTotal += later.length;
+
+    // Kritischer Zwischenraum je Zeile: von der letzten eigenen Ankunft bis
+    // zum nächsten Einschlag danach — genau die Zeit, in der die gerade
+    // gelandete Flotte im Feuer steht (siehe threatAnalysis().windows).
+    const fireSpans = (threatByCoord.get(coord)?.windows ?? [])
+      .filter((w) => w.nextAttack)
+      .map((w) => ({ from: w.arrival.at, to: w.nextAttack.at, gapSec: w.gapSec }))
+      .filter((s) => pct(s.to) >= 0 && pct(s.from) <= 100);
+    const fireBands = fireSpans.map((s) => {
+      const l = Math.max(0, pct(s.from)), r = Math.min(100, pct(s.to));
+      const title = `Flotte im Feuer: gelandet ${hhmm(s.from)}, nächster Einschlag ${hhmm(s.to)} (${durLong(s.gapSec)} dazwischen) — bis dahin online sein und wegschicken`;
+      return `<span class="tl-fire" style="left:${l.toFixed(2)}%;width:${Math.max(r - l, 0.4).toFixed(2)}%" title="${esc(title)}"></span>`;
+    }).join('');
 
     const { placed, overflow, laneCount } = packLanes(inWin, pct, widthPct);
     const marks = placed.map(({ e, x, lane }) => {
@@ -371,7 +390,7 @@ export function gantt(events, opts = {}) {
     const count = attacks ? `<i class="n crit">${attacks}⚔</i>` : `<i class="n">${evs.length}</i>`;
     return `<div class="tl-row${rowIndex % 2 ? ' alt' : ''}${hitCoords.has(coord) ? ' hit' : ''}${flags ? ' ' + flags : ''}" style="height:${height}px">
       <span class="lab">${coordChip(coord, state.ownPlanets.has(coord) ? 'mine' : '')}${count}${indicators(coord, risk)}</span>
-      <span class="track">${marks}${more}${rest}</span></div>`;
+      <span class="track">${fireBands}${marks}${more}${rest}</span></div>`;
   }).join('');
 
   const quietBlock = quiet.length
@@ -388,7 +407,7 @@ export function gantt(events, opts = {}) {
 
   return `<div class="gantt${dots ? ' dots' : ''}" data-from="${from}" data-span="${span}">
     ${zoomBar}
-    <div class="axis">${ticks}<div class="now" style="left:${pct(now).toFixed(2)}%"><b>jetzt</b></div></div>
+    <div class="axis">${ticks}<div class="now" style="left:${pct(Date.now()).toFixed(2)}%"><b>jetzt</b></div></div>
     <div class="tl-winbar">${winbar || '<span class="none">keine Online-Fenster in diesem Zeitraum</span>'}</div>
     <div class="tl-body">
       <div class="tl-grid">${grid}</div>
@@ -411,6 +430,7 @@ export function bandLegend(windows) {
   if (wins.some((w) => w.level === 'safe')) {
     items.push('<span><i class="sw safe"></i> alles save — Online-Zeit optional</span>');
   }
+  items.push('<span><i class="sw fire"></i> Flotte gelandet → nächster Einschlag: kritischer Zwischenraum in der Zeile</span>');
   items.push('<span><i class="sw now"></i> jetzt</span>');
   items.push('<span><i class="sw dot attack"></i> Angriff</span>');
   items.push('<span><i class="sw dot arrival"></i> eigene Flotte</span>');

@@ -301,6 +301,16 @@ details.fold .fbody{padding:0 15px 15px}
 .tl-legend .sep{width:1px;height:12px;background:var(--line2);padding:0}
 .tl-row .track{position:absolute;inset:0;z-index:2}
 
+/* Kritischer Zwischenraum je Zeile: von der letzten eigenen Ankunft bis zum
+   nächsten Einschlag — die Flotte steht dort im Feuer, bis sie wegfliegt
+   oder es einschlägt. Schraffiert, damit es sich vom Fenster-Band oben
+   (Lead-Time) klar unterscheidet. */
+.tl-fire{position:absolute;top:1px;bottom:1px;border-radius:3px;pointer-events:auto;
+  border:1px dashed color-mix(in srgb,var(--threat) 65%,transparent);
+  background:repeating-linear-gradient(45deg,
+    color-mix(in srgb,var(--threat) 16%,transparent) 0 6px,
+    color-mix(in srgb,var(--threat) 6%,transparent) 6px 12px)}
+
 /* Marker: Punkt auf der exakten Zeit + Icon + Uhrzeit */
 .tl-mark{position:absolute;display:inline-flex;align-items:center;gap:3px;height:18px;
   padding:0 6px 0 3px;border-radius:999px;font-size:10.5px;font-family:var(--fontM);
@@ -361,6 +371,10 @@ details.fold .fbody{padding:0 15px 15px}
   border:1px solid color-mix(in srgb,var(--soon) 55%,transparent)}
 .tl-legend .sw.safe{background:color-mix(in srgb,var(--safe) 18%,transparent);
   border:1px solid color-mix(in srgb,var(--safe) 55%,transparent)}
+.tl-legend .sw.fire{background:repeating-linear-gradient(45deg,
+    color-mix(in srgb,var(--threat) 30%,transparent) 0 3px,
+    color-mix(in srgb,var(--threat) 10%,transparent) 3px 6px);
+  border:1px dashed color-mix(in srgb,var(--threat) 65%,transparent)}
 .tl-legend .sw.now{width:3px;background:var(--brand);height:12px;border-radius:2px}
 .tl-legend .sw.dot{width:8px;height:8px;border-radius:50%;box-shadow:0 0 6px currentColor}
 .tl-legend .sw.dot.attack{background:var(--threat);color:var(--threat)}
