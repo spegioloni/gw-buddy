@@ -51,7 +51,7 @@ export function stationedSummary(planet) {
   const defense = Object.entries(planet.defense || {}).filter(([, n]) => n > 0);
   const total = ships.reduce((s, [, n]) => s + n, 0);
   const defTotal = defense.reduce((s, [, n]) => s + n, 0);
-  return { ships, defense, total, defTotal, hasAny: total + defTotal > 0 };
+  return { ships, defense, total, defTotal, hasAny: total + defTotal > 0, hasShips: total > 0 };
 }
 
 /**
@@ -72,12 +72,20 @@ export function arrivalsBeforeAt(coord, at) {
  * sind. Ohne bekannten Abflug bleiben sie im Feuer, wenn danach ein Angriff
  * einschlägt. Ohne diese Ergänzung würde eine kurz vor dem Einschlag
  * zurückkehrende Flotte fälschlich als "save" gelten.
- * @returns {{...stationedSummary, hasAny, arrivals}}
+ * @returns {{...stationedSummary, hasAny, hasShips, arrivals}}
  */
 export function stationedAt(planet, coord, at) {
   const base = stationedSummary(planet);
   const arrivals = arrivalsBeforeAt(coord, at);
-  return { ...base, hasAny: base.hasAny || arrivals.length > 0, arrivals };
+  return {
+    ...base,
+    hasAny: base.hasAny || arrivals.length > 0,
+    // Verteidigungsanlagen zählen hier bewusst NICHT: sie sind unbeweglich,
+    // man kann sie nicht saven. "Im Feuer" steht nur, was man wegschicken
+    // könnte — stationierte Schiffe oder eine Flotte, die vorher landet.
+    hasShips: base.total > 0 || arrivals.length > 0,
+    arrivals,
+  };
 }
 
 /* ---------- Sind die Rohstoffe save? ---------- */
@@ -273,14 +281,15 @@ export function planetStatus(coord, at = null) {
  * zum jetzigen Stand. Marker und Online-Fenster nutzen dieselbe Funktion,
  * damit die Bewertungen nicht auseinanderlaufen können.
  * @returns {{coord,at,st,risk,shipsSafe,lootSafe,safe}}
- *   shipsSafe = nichts stationiert und keine eigene Landung bis dahin
+ *   shipsSafe = keine Schiffe stationiert und keine eigene Landung bis dahin
+ *               (reine Verteidigungsanlagen zählen nicht — sie sind unbeweglich)
  *   lootSafe  = Rohstoffe bekannt UND unter dem Sockel (unbekannt = nicht save)
  */
 export function impactVerdict(coord, at) {
   const p = state.planets.get(coord);
   const st = p ? stationedAt(p, coord, at) : null;
   const risk = plunderRisk(coord, at);
-  const shipsSafe = !st?.hasAny;
+  const shipsSafe = !st?.hasShips;
   const lootSafe = risk.known && risk.safe;
   return { coord, at, st, risk, shipsSafe, lootSafe, safe: shipsSafe && lootSafe };
 }
@@ -379,10 +388,10 @@ export function criticalPoints() {
   for (const imp of impacts) {
     const p = state.planets.get(imp.ziel);
     const st = p ? stationedAt(p, imp.ziel, imp.at) : null;
-    if (st?.hasAny) {
+    if (st?.hasShips) {
       out.push({
         kind: 'loss', at: imp.at, coord: imp.ziel, level: 'critical',
-        text: `${st.total ? `${st.total} Schiffe` : ''}${st.total && st.defTotal ? ' + ' : ''}${st.defTotal ? `${st.defTotal} Verteidigung` : ''} stehen beim Einschlag ungeschützt`,
+        text: `${st.total ? `${st.total} Schiffe` : 'Eigene Flotte landet vorher und'}${st.total && st.defTotal ? ` + ${st.defTotal} Verteidigung` : ''} ${st.total ? 'stehen' : 'steht'} beim Einschlag ungeschützt`,
       });
     }
     // Rohstoffe über dem nicht plünderbaren Sockel — hochgerechnet auf den Einschlag.

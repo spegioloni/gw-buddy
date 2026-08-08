@@ -92,10 +92,13 @@ function indicators(coord, atRisk) {
   const shipTxt = st.ships.length
     ? st.ships.slice(0, 3).map(([k, n]) => `${num(n)} ${deLabel.ship(k)}`).join(', ')
     : 'keine Schiffe';
+  const defTxt = st.defTotal ? ` · ${num(st.defTotal)} Verteidigung (fest verbaut, nicht savebar)` : '';
   const fleetCls = !st.hasAny ? 'empty' : atRisk ? 'risk' : 'on';
-  const fleetTitle = st.hasAny
-    ? `Flotte stationiert: ${shipTxt}${st.defTotal ? ` · ${num(st.defTotal)} Verteidigung` : ''}${atRisk ? ' — steht beim Einschlag im Feuer!' : ''}`
-    : 'Nichts stationiert — hier ist nichts zu verlieren';
+  const fleetTitle = st.hasShips
+    ? `Flotte stationiert: ${shipTxt}${defTxt}${atRisk ? ' — steht beim Einschlag im Feuer!' : ''}`
+    : st.hasAny
+      ? `Keine Schiffe stationiert${defTxt} — nichts zu saven`
+      : 'Nichts stationiert — hier ist nichts zu verlieren';
   const fleetNum = st.total ? compact(st.total) : st.defTotal ? '◇' : '–';
 
   const b = s.build;
@@ -193,9 +196,9 @@ function attackVerdict(e) {
 
   const landing = st?.arrivals?.[st.arrivals.length - 1] ?? null;
   const shipTitle = shipsSafe
-    ? 'Schiffe SAVE — nichts stationiert'
-    : st.total || st.defTotal
-      ? `${st.total ? `${num(st.total)} Schiffe` : ''}${st.total && st.defTotal ? ' + ' : ''}${st.defTotal ? `${num(st.defTotal)} Verteidigung` : ''} stehen beim Einschlag im Feuer`
+    ? `Schiffe SAVE — keine Schiffe stationiert${st?.defTotal ? ` (nur ${num(st.defTotal)} Verteidigung, die ist fest verbaut)` : ''}`
+    : st.total
+      ? `${num(st.total)} Schiffe${st.defTotal ? ` + ${num(st.defTotal)} Verteidigung` : ''} stehen beim Einschlag im Feuer`
       : `Eigene Flotte landet ${hhmm(landing.at)} (${esc(landing.mission)}) und steht beim Einschlag im Feuer`;
 
   const resCls = !risk.known ? 'unknown' : risk.safe ? 'ok' : 'bad';
@@ -382,7 +385,7 @@ export function gantt(events, opts = {}) {
     const height = (laneCount + (overflow.length ? 1 : 0)) * laneH;
     const attacks = evs.filter((e) => e.type === 'attack').length;
     const st = planetStatus(coord);
-    const risk = hitCoords.has(coord) && !!st.stationed?.hasAny;
+    const risk = hitCoords.has(coord) && !!st.stationed?.hasShips;
     const flags = [
       risk ? 'risk' : '',
       st.mine && st.build.free ? 'bfree' : '',

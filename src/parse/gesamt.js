@@ -38,6 +38,7 @@ export function parseGesamt(text) {
     planets: [],
     planetCount: null,
     byPlanet: {},
+    unknownRows: [],
     totals: { resources: {}, production: {}, points: null },
   };
 
@@ -76,7 +77,12 @@ export function parseGesamt(text) {
     if (lone.length === 1) {
       const sec = sectionOf(label);
       if (sec) { section = sec; continue; }
+      // Unbekannte Einzelzeile = fremde/neue Sektion. Ohne diesen Abbruch
+      // liefen ihre Zeilen weiter in die zuletzt aktive Sektion und tauchten
+      // z.B. als "Verteidigungsanlagen" auf, die es gar nicht gibt.
+      if (section !== 'head') { section = null; continue; }
     }
+    if (section === null) continue;
 
     // Planet-Kopfzeile -> Spaltenreihenfolge.
     if (section === 'head' && label === 'Planet') {
@@ -138,7 +144,11 @@ export function parseGesamt(text) {
     if (section === 'ships' || section === 'defense') {
       if (/\bckk\b/i.test(label)) continue; // ckk-Summenzeile überspringen
       const bag = section === 'ships' ? 'ships' : 'defense';
-      const key = (section === 'ships' ? shipKey(label) : defenceKey(label)) ?? label;
+      const key = section === 'ships' ? shipKey(label) : defenceKey(label);
+      // Nur bekannte Schiffe/Verteidigungsanlagen zählen. Alles andere ist
+      // Fremdtext (Forschung, angehängte Seiten) und würde sonst als Bestand
+      // gewertet — mit falschem "steht im Feuer"-Alarm als Folge.
+      if (!key) { result.unknownRows.push({ section, label }); continue; }
       for (let i = 0; i < N; i++) ensure(coords[i])[bag][key] = parseGwInt(cellFor(i)) ?? 0;
       continue;
     }

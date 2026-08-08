@@ -63,6 +63,21 @@ console.log('  Schiffsfabrik idle:', idleYard.join(', '));
 ok(noBuild.includes('12:101:5') && noBuild.includes('12:99:1'), 'noBuild enthält 101:5 & 99:1');
 ok(idleYard.includes('12:99:1') && idleYard.includes('12:97:1'), 'idleYard enthält 99:1 & 97:1');
 
+// Fremdtext nach der Verteidigungs-Sektion darf keine Bestände erfinden:
+// eine unbekannte Sektion beendet die aktive Sektion, unbekannte Zeilen
+// werden nicht als Schiffe/Verteidigung gezählt.
+{
+  const cols = G.planets.map(() => '449').join('\t');
+  const tainted = `${gText}\nForschung\nWaffentechnik\t${cols}\t-\t449\nAllerlei\t${cols}\t-\t449\n`;
+  const T = parseGesamt(tainted);
+  const defSum = (c) => Object.values(T.byPlanet[c].defense).reduce((s, n) => s + n, 0);
+  const shipKeys = (c) => Object.keys(T.byPlanet[c].ships);
+  ok(G.planets.every((c) => defSum(c) === 0),
+    'Fremdsektion erzeugt keine Verteidigung, got ' + G.planets.map(defSum).join(','));
+  ok(shipKeys('12:44:5').every((k) => k !== 'Waffentechnik'),
+    'Fremdzeile landet nicht in ships');
+}
+
 // ---------- Übersichtsseite ----------
 const uText = read('uebersicht.txt');
 console.log('\ndetect(uebersicht):', detectType(uText));

@@ -24,9 +24,9 @@ function hero() {
   }
   const p = state.planets.get(imp.ziel);
   const st = p ? stationedSummary(p) : null;
-  const stationLine = st && st.hasAny
+  const stationLine = st && st.hasShips
     ? `Stationiert auf ${coordChip(imp.ziel)}: <b>${shipList(st)}</b>${st.defTotal ? ` · ${num(st.defTotal)} Verteidigung` : ''} → saven oder zur Verteidigung halten?`
-    : `Auf ${coordChip(imp.ziel)} sind aktuell keine eigenen Schiffe stationiert.`;
+    : `Auf ${coordChip(imp.ziel)} sind aktuell keine eigenen Schiffe stationiert${st?.defTotal ? ` (nur ${num(st.defTotal)} Verteidigung — die bleibt ohnehin stehen)` : ''}.`;
   const others = state.fleets.filter((e) => e.hostile).length - 1;
   return `<div class="hero"><div class="ring"></div>
     <div>
