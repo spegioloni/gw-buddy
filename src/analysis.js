@@ -54,6 +54,32 @@ export function stationedSummary(planet) {
   return { ships, defense, total, defTotal, hasAny: total + defTotal > 0 };
 }
 
+/**
+ * Eigene Flottenankünfte auf `coord`, die nach dem Snapshot und bis `at`
+ * landen. Ohne bekannten künftigen Abflug gilt: einmal gelandet, bleibt die
+ * Flotte da — deshalb zählt jede Landung in diesem Zeitraum als Gegenwart.
+ */
+export function arrivalsBeforeAt(coord, at) {
+  const ref = state.refAt ?? serverNow();
+  return state.fleets
+    .filter((e) => e.own && e.ziel === coord && e.at > ref && e.at <= at)
+    .sort((a, b) => a.at - b.at);
+}
+
+/**
+ * Stationierte Schiffe zu einem Zeitpunkt `at` — der Snapshot-Bestand PLUS
+ * eigene Flotten, die zwischenzeitlich (Snapshot bis `at`) dort gelandet
+ * sind. Ohne bekannten Abflug bleiben sie im Feuer, wenn danach ein Angriff
+ * einschlägt. Ohne diese Ergänzung würde eine kurz vor dem Einschlag
+ * zurückkehrende Flotte fälschlich als "save" gelten.
+ * @returns {{...stationedSummary, hasAny, arrivals}}
+ */
+export function stationedAt(planet, coord, at) {
+  const base = stationedSummary(planet);
+  const arrivals = arrivalsBeforeAt(coord, at);
+  return { ...base, hasAny: base.hasAny || arrivals.length > 0, arrivals };
+}
+
 /* ---------- Sind die Rohstoffe save? ---------- */
 
 // Wasser bleibt bewusst außen vor: es darf ruhig geplündert werden.
@@ -223,17 +249,40 @@ export function planetStatus(coord, at = null) {
     : { free: true };
 
   const yardLvl = lvl(p.buildings?.shipFactory) || 0;
+  // Die Werft-Restzeit kommt ausschließlich aus der Gesamtübersicht und zählt
+  // ab deren Einfügemoment — nicht ab dem Snapshot der Übersichtsseite.
+  const gRef = state.gesamtRefAt ?? ref;
   const yard = yardLvl < 1
     ? { none: true }
     : p.shipyardFreeSec == null
       ? { free: true, level: yardLvl }
-      : { free: false, level: yardLvl, at: ref + p.shipyardFreeSec * 1000 };
+      : { free: false, level: yardLvl, at: gRef + p.shipyardFreeSec * 1000 };
 
   const imp = nextImpactOn(coord);
   const lootAt = at ?? imp?.at ?? serverNow();
   const loot = { ...plunderRisk(coord, lootAt), at: lootAt, forImpact: at == null && !!imp };
 
   return { mine: true, stationed: stationedSummary(p), loot, build, yard };
+}
+
+/* ---------- Urteil zu einem einzelnen Einschlag ---------- */
+
+/**
+ * Die eine Wahrheit hinter Marker-Farbe UND Bandfarbe: Ist bei diesem
+ * Einschlag etwas zu verlieren? Beides zum Zeitpunkt des Einschlags, nicht
+ * zum jetzigen Stand. Marker und Online-Fenster nutzen dieselbe Funktion,
+ * damit die Bewertungen nicht auseinanderlaufen können.
+ * @returns {{coord,at,st,risk,shipsSafe,lootSafe,safe}}
+ *   shipsSafe = nichts stationiert und keine eigene Landung bis dahin
+ *   lootSafe  = Rohstoffe bekannt UND unter dem Sockel (unbekannt = nicht save)
+ */
+export function impactVerdict(coord, at) {
+  const p = state.planets.get(coord);
+  const st = p ? stationedAt(p, coord, at) : null;
+  const risk = plunderRisk(coord, at);
+  const shipsSafe = !st?.hasAny;
+  const lootSafe = risk.known && risk.safe;
+  return { coord, at, st, risk, shipsSafe, lootSafe, safe: shipsSafe && lootSafe };
 }
 
 /* ---------- Online-/Save-Fenster ---------- */
@@ -278,11 +327,18 @@ export function saveWindows({ leadSec = SAVE_LEAD_SEC } = {}) {
   let prevEnd = null;
   return blocks.map((b) => {
     const coords = [...new Set(b.impacts.map((e) => e.ziel))];
-    // Planeten in diesem Fenster, auf denen tatsächlich etwas zu verlieren ist.
-    const stationedCoords = coords.filter((c) => {
-      const p = state.planets.get(c);
-      return p ? stationedSummary(p).hasAny : false;
-    });
+    // Je Einschlag dasselbe Urteil wie am Marker auf der Zeitachse — so hat
+    // das Band garantiert die Farbe des schlimmsten Markers darin.
+    const verdicts = b.impacts.map((e) => impactVerdict(e.ziel, e.at));
+    const stationedCoords = [...new Set(verdicts.filter((v) => !v.shipsSafe).map((v) => v.coord))];
+    const lootCoords = [...new Set(verdicts.filter((v) => !v.lootSafe).map((v) => v.coord))];
+    // Beute je Planet zum Zeitpunkt seines eigenen Einschlags — der erste
+    // Einschlag zählt, danach ist ohnehin abgeräumt.
+    let lootTotal = 0;
+    for (const c of lootCoords) {
+      const v = verdicts.find((x) => x.coord === c);
+      if (v?.risk.known) lootTotal += v.risk.loot;
+    }
     // Eigene Flotten, die mitten im Fenster landen — die stehen dann im Feuer.
     const landings = state.fleets.filter(
       (e) => e.own && e.at >= b.from && e.at <= b.to && coords.includes(e.ziel));
@@ -290,18 +346,9 @@ export function saveWindows({ leadSec = SAVE_LEAD_SEC } = {}) {
     const builds = state.buildOrders.filter(
       (o) => o.at >= b.from && o.at <= b.to && coords.includes(o.coord));
 
-    // Beute, die in diesem Fenster auf dem Tisch liegt — je Planet zum
-    // Zeitpunkt seines eigenen Einschlags, nicht zum Fensterende.
-    let lootTotal = 0;
-    const lootCoords = [];
-    for (const c of coords) {
-      const first = b.impacts.find((e) => e.ziel === c);
-      const risk = plunderRisk(c, first ? first.at : b.to);
-      if (risk.known && risk.loot > 0) { lootTotal += risk.loot; lootCoords.push(c); }
-    }
-
     // Kritisch: Flotte steht im Feuer oder landet mitten im Fenster.
-    // Warn: nichts stationiert, aber es gibt Beute zu holen.
+    // Warn: nichts stationiert, aber es gibt Beute zu holen (oder die
+    //       Rohstofflage ist unbekannt — dann lieber hinschauen).
     // Safe: weder Flotte noch Rohstoffe in Gefahr — Online-Zeit ist optional.
     const level = stationedCoords.length || landings.length
       ? 'critical' : lootCoords.length ? 'warn' : 'safe';
@@ -309,7 +356,7 @@ export function saveWindows({ leadSec = SAVE_LEAD_SEC } = {}) {
     prevEnd = b.to;
 
     return {
-      ...b, coords, stationedCoords, landings, builds, level,
+      ...b, coords, stationedCoords, landings, builds, level, verdicts,
       lootTotal, lootCoords, optional: level === 'safe',
       durationSec: (b.to - b.from) / 1000,
       startsInSec: (b.from - now) / 1000,
@@ -331,7 +378,7 @@ export function criticalPoints() {
 
   for (const imp of impacts) {
     const p = state.planets.get(imp.ziel);
-    const st = p ? stationedSummary(p) : null;
+    const st = p ? stationedAt(p, imp.ziel, imp.at) : null;
     if (st?.hasAny) {
       out.push({
         kind: 'loss', at: imp.at, coord: imp.ziel, level: 'critical',

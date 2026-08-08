@@ -204,6 +204,66 @@ const st445 = A.planetStatus('12:44:5');
 ok(st445.loot.forImpact && st445.loot.at === impact445.at,
   'Beute-Chip zeigt den Stand zum Einschlag');
 
+// --- Regression: dieselbe Tabelle zweimal im Paste ----------------------
+// Beim Kopieren aus dem Spiel landet die Auftragsliste gern doppelt im Text.
+// Derselbe Planet + dasselbe Gebäude + dieselbe Stufe ist EIN Auftrag.
+{
+  const raw = read('uebersicht.txt');
+  const lines = raw.split(/\r?\n/);
+  const head = lines.findIndex((l) => /^Gebäudeaufträge/.test(l.trim()));
+  const end = lines.findIndex((l, i) => i > head && /^Forschungsaufträge/.test(l.trim()));
+  ok(head > 0 && end > head, 'Gebäudeaufträge-Block im Fixture gefunden');
+  const doubled = [
+    ...lines.slice(0, end),
+    ...lines.slice(head, end),   // Block ein zweites Mal
+    ...lines.slice(end),
+  ].join('\n');
+
+  const before = state.buildOrders.length;
+  ingest(doubled);
+  ok(state.uebersicht.buildOrders.length === 12,
+    'Parser sieht die Liste doppelt, got ' + state.uebersicht.buildOrders.length);
+  ok(state.buildOrders.length === 6,
+    'doppelt eingefügte Auftragsliste ergibt 6 Aufträge, got ' + state.buildOrders.length);
+  const keys = state.buildOrders.map((o) => `${o.coord}|${o.key}|${o.level}`);
+  ok(new Set(keys).size === keys.length, 'keine Dubletten in state.buildOrders');
+  ok(before === 6, 'Ausgangslage 6 Aufträge, got ' + before);
+  ingest(read('uebersicht.txt'));
+}
+
+// --- Regression: Rückflug zwischen zwei Einschlägen ---------------------
+// Landet eine eigene Flotte nach Einschlag A und vor Einschlag B, steht sie
+// bei B im Feuer — Marker UND Online-Fenster müssen das gleich bewerten.
+{
+  const coord = '12:44:5';
+  const pl = state.planets.get(coord);
+  const ref = state.refAt;
+  const saveFleets = state.fleets;
+  const at1 = ref + 30 * 60e3, back = ref + 40 * 60e3, at2 = ref + 130 * 60e3;
+  state.fleets = [
+    { ziel: coord, start: '9:9:9', at: at1, hostile: true, own: false, spy: false, mission: 'Angriff' },
+    { ziel: coord, start: coord, at: back, hostile: false, own: true, spy: false, mission: 'Rückflug' },
+    { ziel: coord, start: '9:9:9', at: at2, hostile: true, own: false, spy: false, mission: 'Angriff' },
+  ];
+  const hadShips = A.stationedSummary(pl).hasAny;
+  ok(hadShips === A.stationedSummary(pl).hasAny, 'Setup');
+  ok(!A.impactVerdict(coord, at2).shipsSafe,
+    'Einschlag nach Rückflug: Flotte gilt als stationiert');
+  const wins = A.saveWindows();
+  const w2 = wins.find((w) => w.impacts.some((i) => i.at === at2));
+  ok(!!w2 && w2.level === 'critical',
+    'Online-Fenster nach Rückflug ist kritisch, got ' + (w2 ? w2.level : 'kein Fenster'));
+
+  // Kernversprechen: kein Fenster darf "safe" sein, wenn ein Einschlag darin
+  // laut Marker nicht save ist.
+  for (const w of wins) {
+    const worst = w.impacts.every((i) => A.impactVerdict(i.ziel, i.at).safe);
+    ok(w.level === 'safe' ? worst : true,
+      `Fenster ${new Date(w.from).toTimeString().slice(0, 5)} als safe, obwohl ein Einschlag es nicht ist`);
+  }
+  state.fleets = saveFleets;
+}
+
 console.log(`\n${fail === 0 ? '✅' : '❌'}  ${pass} ok, ${fail} fehlgeschlagen`);
 process.exit(fail === 0 ? 0 : 1);
 

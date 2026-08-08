@@ -2,7 +2,7 @@
 // Ziel: auf einen Blick lesbar — Stundenraster, beschriftete Marker,
 // überlappungsfreie Stapelung je Planet und Save-Fenster als Bänder.
 import { state, serverNow } from '../state.js';
-import { timelineTypes, saveWindows, planetStatus, plunderRisk, stationedSummary, threatAnalysis, PLUNDER_RESOURCES } from '../analysis.js';
+import { timelineTypes, saveWindows, planetStatus, impactVerdict, threatAnalysis, PLUNDER_RESOURCES } from '../analysis.js';
 import { coordChip, hhmm, esc, durLong, num } from '../util/time.js';
 import { deLabel } from '../domain.js';
 import { emptyState } from './components.js';
@@ -187,14 +187,16 @@ function gridSteps(from, to) {
  */
 function attackVerdict(e) {
   if (e.type !== 'attack' || !state.ownPlanets.has(e.coord)) return { safe: null, html: '', reason: '' };
-  const p = state.planets.get(e.coord);
-  const st = p ? stationedSummary(p) : null;
-  const risk = plunderRisk(e.coord, e.at);
+  // Exakt dieselbe Bewertung wie beim Online-Fenster (impactVerdict in
+  // analysis.js) — Markerfarbe und Bandfarbe können so nicht auseinanderlaufen.
+  const { st, risk, shipsSafe, safe } = impactVerdict(e.coord, e.at);
 
-  const shipsSafe = !st?.hasAny;
+  const landing = st?.arrivals?.[st.arrivals.length - 1] ?? null;
   const shipTitle = shipsSafe
     ? 'Schiffe SAVE — nichts stationiert'
-    : `${st.total ? `${num(st.total)} Schiffe` : ''}${st.total && st.defTotal ? ' + ' : ''}${st.defTotal ? `${num(st.defTotal)} Verteidigung` : ''} stehen beim Einschlag im Feuer`;
+    : st.total || st.defTotal
+      ? `${st.total ? `${num(st.total)} Schiffe` : ''}${st.total && st.defTotal ? ' + ' : ''}${st.defTotal ? `${num(st.defTotal)} Verteidigung` : ''} stehen beim Einschlag im Feuer`
+      : `Eigene Flotte landet ${hhmm(landing.at)} (${esc(landing.mission)}) und steht beim Einschlag im Feuer`;
 
   const resCls = !risk.known ? 'unknown' : risk.safe ? 'ok' : 'bad';
   const resTitle = !risk.known
@@ -203,9 +205,8 @@ function attackVerdict(e) {
       ? 'Rohstoffe SAVE — alles unter dem nicht plünderbaren Sockel'
       : `${de(risk.loot)} Rohstoffe plünderbar (${risk.byRes.filter((r) => r.loot > 0).map((r) => `${compactRes(r.loot)} ${deLabel.resource(r.key)}`).join(', ')})`;
 
-  // Nur "wirklich save", wenn beides bekannt und ungefährdet ist — bei
+  // "safe" = beides bekannt und ungefährdet (siehe impactVerdict) — bei
   // unbekannten Rohstoffen bleibt der Marker vorsichtshalber alarmiert.
-  const safe = shipsSafe && risk.known && risk.safe;
   const html = `<u class="v"><b class="${shipsSafe ? 'ok' : 'bad'}" title="${esc(shipTitle)}">⬟</b><b class="${resCls}" title="${esc(resTitle)}">◈</b></u>`;
 
   // Ausführliche, aber lesbare Begründung fürs Haupt-Tooltip: je Rohstoff die
@@ -425,7 +426,7 @@ export function bandLegend(windows) {
     items.push('<span><i class="sw critical"></i> Online nötig — Flotte steht im Feuer</span>');
   }
   if (wins.some((w) => w.level === 'warn')) {
-    items.push('<span><i class="sw warn"></i> Einschlag ohne stationierte Flotte, aber Beute möglich</span>');
+    items.push('<span><i class="sw warn"></i> keine Flotte im Feuer, aber Beute möglich (oder Rohstofflage unbekannt)</span>');
   }
   if (wins.some((w) => w.level === 'safe')) {
     items.push('<span><i class="sw safe"></i> alles save — Online-Zeit optional</span>');

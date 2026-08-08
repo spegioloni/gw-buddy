@@ -20,6 +20,10 @@ export const state = {
   buildOrders: [],       // laufende Bauaufträge mit absoluter Fertigzeit .at
   serverOffset: 0,       // Serverzeit(ms) − lokale Zeit(ms)
   refAt: null,           // absolute Referenzzeit des Snapshots (ms)
+  gesamtAt: null,        // Wanduhr-Zeit des Gesamtübersicht-Pastes (ms)
+  uebersichtAt: null,    // Wanduhr-Zeit des Übersichtsseiten-Pastes (ms)
+  gesamtRefAt: null,     // Serverzeit-Bezug für Restzeiten aus der Gesamtübersicht
+  buildSource: null,     // welche Quelle die Bauaufträge geliefert hat
   snapshotAge: null,     // Sekunden zwischen Snapshot und Paste-Moment
   lastError: null,
 };
@@ -29,6 +33,8 @@ export const serverNow = () => Date.now() + state.serverOffset;
 export function loadPersisted() {
   state.gesamtText = LS.get('gesamtText', '');
   state.uebersichtText = LS.get('uebersichtText', '');
+  state.gesamtAt = LS.get('gesamtAt', null);
+  state.uebersichtAt = LS.get('uebersichtAt', null);
   const own = LS.get('ownPlanets', []);
   state.ownPlanets = new Set(Array.isArray(own) ? own : []);
   rebuild(Date.now());
@@ -55,23 +61,30 @@ function snapshotToAbs(snap, wall) {
  */
 export function ingest(text) {
   const type = detectType(text);
+  const wall = Date.now();
   if (type === 'gesamt') {
     state.gesamtText = text;
+    state.gesamtAt = wall;
     LS.set('gesamtText', text);
+    LS.set('gesamtAt', wall);
   } else if (type === 'uebersicht') {
     state.uebersichtText = text;
+    state.uebersichtAt = wall;
     LS.set('uebersichtText', text);
+    LS.set('uebersichtAt', wall);
   } else {
     state.lastError = 'Konnte den Text keinem Format zuordnen.';
     return { type, ok: false, message: state.lastError };
   }
-  const res = rebuild(Date.now());
+  const res = rebuild(wall);
   return { type, ok: true, message: res.message };
 }
 
 export function clearAll() {
   state.gesamtText = ''; state.uebersichtText = '';
+  state.gesamtAt = null; state.uebersichtAt = null;
   LS.set('gesamtText', ''); LS.set('uebersichtText', '');
+  LS.set('gesamtAt', null); LS.set('uebersichtAt', null);
   rebuild(Date.now());
 }
 
@@ -94,6 +107,11 @@ export function rebuild(wall) {
   state.refAt = uAbs ?? wall;
   state.serverOffset = state.refAt - wall;
   state.snapshotAge = uAbs != null ? Math.max(0, (wall - uAbs) / 1000) : null;
+  // Die Gesamtübersicht trägt keinen Zeitstempel — ihre Restzeiten galten im
+  // Moment des Einfügens. In Serverzeit umgerechnet ergibt das ihren Bezug.
+  state.gesamtRefAt = state.gesamtAt != null
+    ? state.gesamtAt + state.serverOffset
+    : state.refAt;
 
   // 4) Planeten-Datensätze zusammenführen.
   buildPlanets();
@@ -102,27 +120,15 @@ export function rebuild(wall) {
   const ref = state.refAt;
   state.fleets = (state.uebersicht?.fleets ?? []).map((e) => ({ ...e, at: ref + e.offsetSec * 1000 }));
 
-  const orders = [];
-  if (state.uebersicht?.buildOrders?.length) {
-    for (const b of state.uebersicht.buildOrders) {
-      orders.push({ ...b, at: ref + (b.remainingSec ?? 0) * 1000, source: 'uebersicht' });
-    }
-  } else if (state.gesamt) {
-    for (const [coord, p] of Object.entries(state.gesamt.byPlanet)) {
-      if (p.buildOrder && p.buildOrder.remainingSec != null) {
-        orders.push({ coord, name: p.buildOrder.name, level: p.buildOrder.level, key: p.buildOrder.key,
-          remainingSec: p.buildOrder.remainingSec, at: ref + p.buildOrder.remainingSec * 1000, source: 'gesamt' });
-      }
-    }
-  }
-  orders.sort((a, b) => a.at - b.at);
+  const { orders, source } = mergeBuildOrders();
   state.buildOrders = orders;
+  state.buildSource = source;
 
-  // 6) Bauaufträge auf die Planeten zurückschreiben. Die Übersichtsseite listet
-  //    ALLE laufenden Aufträge — ist sie dabei, ist sie maßgeblich und ein
-  //    Planet ohne Eintrag hat wirklich keinen Auftrag (auch wenn die ältere
-  //    Gesamtübersicht dort noch einen zeigt).
-  if (state.uebersicht?.buildSection) {
+  // 6) Bauaufträge auf die Planeten zurückschreiben. Beide Quellen listen
+  //    jeweils ALLE laufenden Aufträge — die maßgebliche Quelle entscheidet
+  //    deshalb auch, wo KEIN Auftrag läuft (ein Planet ohne Eintrag ist frei,
+  //    auch wenn das ältere Dokument dort noch einen Auftrag zeigt).
+  if (source) {
     const byCoord = new Map(state.buildOrders.map((o) => [o.coord, o]));
     for (const coord of byCoord.keys()) ensurePlanet(coord);
     for (const [coord, p] of state.planets) {
@@ -137,6 +143,60 @@ export function rebuild(wall) {
   if (state.gesamt) parts.push(`${state.gesamt.planets.length} Planeten`);
   if (state.uebersicht) parts.push(`${state.fleets.length} Flotten`, `${state.buildOrders.length} Bauaufträge`);
   return { message: parts.join(' · ') || 'keine Daten' };
+}
+
+/**
+ * Bauaufträge aus beiden Quellen abgleichen.
+ *
+ * Beide Dokumente listen jeweils den kompletten Stand — sie ergänzen sich
+ * nicht, sie widersprechen sich höchstens. Deshalb gewinnt das zuletzt
+ * eingefügte Dokument; das ältere springt nur ein, wenn das jüngere gar
+ * keine Bausektion mitbringt. Innerhalb einer Quelle werden Doppelnennungen
+ * (gleicher Planet, gleiches Gebäude, gleiche Stufe) zusammengefasst — beim
+ * Kopieren aus dem Spiel taucht dieselbe Tabelle gern zweimal im Text auf.
+ * @returns {{orders:Array, source:'uebersicht'|'gesamt'|null}}
+ */
+function mergeBuildOrders() {
+  const fromUebersicht = () => (state.uebersicht?.buildOrders ?? []).map((b) => ({
+    ...b, at: state.refAt + (b.remainingSec ?? 0) * 1000, source: 'uebersicht',
+  }));
+  const fromGesamt = () => Object.entries(state.gesamt?.byPlanet ?? {})
+    .filter(([, p]) => p.buildOrder && p.buildOrder.remainingSec != null)
+    .map(([coord, p]) => ({
+      coord, name: p.buildOrder.name, level: p.buildOrder.level, key: p.buildOrder.key,
+      remainingSec: p.buildOrder.remainingSec,
+      at: state.gesamtRefAt + p.buildOrder.remainingSec * 1000, source: 'gesamt',
+    }));
+
+  // "Jünger" heißt: zuletzt eingefügt. Die Gesamtübersicht trägt keine Uhrzeit,
+  // also ist der Paste-Moment das einzig belastbare Kriterium für beide.
+  const uAt = state.uebersichtAt ?? (state.uebersichtText ? 0 : -Infinity);
+  const gAt = state.gesamtAt ?? (state.gesamtText ? 0 : -Infinity);
+  const candidates = uAt >= gAt
+    ? [['uebersicht', fromUebersicht], ['gesamt', fromGesamt]]
+    : [['gesamt', fromGesamt], ['uebersicht', fromUebersicht]];
+
+  for (const [source, load] of candidates) {
+    const present = source === 'uebersicht' ? !!state.uebersicht?.buildSection : !!state.gesamt;
+    if (!present) continue;
+    // Eine leere, aber vorhandene Bausektion ist eine Aussage ("nichts läuft"),
+    // kein fehlender Datensatz — dann darf die ältere Quelle nicht einspringen.
+    const orders = dedupeOrders(load()).sort((a, b) => a.at - b.at);
+    return { orders, source };
+  }
+  return { orders: [], source: null };
+}
+
+/** Gleicher Planet + gleiches Gebäude + gleiche Stufe = derselbe Auftrag. */
+function dedupeOrders(orders) {
+  const seen = new Map();
+  for (const o of orders) {
+    const k = `${o.coord}|${o.key ?? o.name}|${o.level}`;
+    const prev = seen.get(k);
+    // Bei Dubletten die kleinere Restzeit behalten — sie ist die frischere.
+    if (!prev || o.at < prev.at) seen.set(k, o);
+  }
+  return [...seen.values()];
 }
 
 function newPlanet(coord) {
