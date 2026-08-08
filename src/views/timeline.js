@@ -333,13 +333,26 @@ export function gantt(events, opts = {}) {
     return a[0].localeCompare(b[0]);
   });
 
-  // Planeten ohne jedes Ereignis bekommen keine eigene Zeile mehr — leere
-  // Spuren kosten nur Höhe. Ihre Statuschips wandern in eine Sammelzeile.
-  const busy = sorted.filter(([, evs]) => evs.length);
-  const quiet = sorted.filter(([, evs]) => !evs.length).map(([c]) => c);
-
+  // Alle Planeten bekommen eine eigene Zeile — auch die ruhigen. Ihre Zeile
+  // ist minimal hoch (keine Marker-Spuren nötig) und zeigt nur Coord-Chip
+  // und Statusindikatoren, statt in einer Sammelzeile zu verschwinden.
   let hiddenTotal = 0;
-  const rows = busy.map(([coord, evs], rowIndex) => {
+  const rows = sorted.map(([coord, evs], rowIndex) => {
+    const st = planetStatus(coord);
+    const risk = hitCoords.has(coord) && !!st.stationed?.hasShips;
+    const flags = [
+      risk ? 'risk' : '',
+      st.mine && st.build.free ? 'bfree' : '',
+      st.mine && st.yard.free ? 'yfree' : '',
+    ].filter(Boolean).join(' ');
+    const labChip = `${coordChip(coord, state.ownPlanets.has(coord) ? 'mine' : '')}`;
+
+    if (!evs.length) {
+      return `<div class="tl-row quiet${rowIndex % 2 ? ' alt' : ''}${flags ? ' ' + flags : ''}" style="height:${LANE_H}px">
+        <span class="lab">${labChip}${indicators(coord, false)}</span>
+        <span class="track"></span></div>`;
+    }
+
     const inWin = evs.filter((e) => e.at <= to);
     const later = evs.filter((e) => e.at > to);
     hiddenTotal += later.length;
@@ -384,24 +397,11 @@ export function gantt(events, opts = {}) {
 
     const height = (laneCount + (overflow.length ? 1 : 0)) * laneH;
     const attacks = evs.filter((e) => e.type === 'attack').length;
-    const st = planetStatus(coord);
-    const risk = hitCoords.has(coord) && !!st.stationed?.hasShips;
-    const flags = [
-      risk ? 'risk' : '',
-      st.mine && st.build.free ? 'bfree' : '',
-      st.mine && st.yard.free ? 'yfree' : '',
-    ].filter(Boolean).join(' ');
     const count = attacks ? `<i class="n crit">${attacks}⚔</i>` : `<i class="n">${evs.length}</i>`;
     return `<div class="tl-row${rowIndex % 2 ? ' alt' : ''}${hitCoords.has(coord) ? ' hit' : ''}${flags ? ' ' + flags : ''}" style="height:${height}px">
-      <span class="lab">${coordChip(coord, state.ownPlanets.has(coord) ? 'mine' : '')}${count}${indicators(coord, risk)}</span>
+      <span class="lab">${labChip}${count}${indicators(coord, risk)}</span>
       <span class="track">${fireBands}${marks}${more}${rest}</span></div>`;
   }).join('');
-
-  const quietBlock = quiet.length
-    ? `<div class="tl-quiet"><span class="qh" title="Keine Ereignisse im Zeitfenster — die Statuschips zeigen freie Kapazität">✓ ruhig (${quiet.length})</span>${
-      quiet.map((c) => `<span class="qi">${coordChip(c, state.ownPlanets.has(c) ? 'mine' : '')}${indicators(c, false)}</span>`).join('')
-    }</div>`
-    : '';
 
   const zoomBar = `<div class="tl-zoom">
     <span class="zl">Zeitfenster</span>
@@ -418,7 +418,7 @@ export function gantt(events, opts = {}) {
       <div class="tl-bands">${bands}</div>
       ${rows}
     </div>
-    ${quietBlock}</div>`;
+  </div>`;
 }
 
 /** Legende — Fenster nur erklären, wenn es welche gibt. */

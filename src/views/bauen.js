@@ -1,15 +1,54 @@
 // Tab "Bauen & Forschen": Aktions-Panel (laufende Aufträge + freie Kapazität)
 // und die aufklappbare vollständige Gebäude-Matrix.
 import { state, serverNow } from '../state.js';
-import { freeCapacity } from '../analysis.js';
+import { freeCapacity, storageSafety } from '../analysis.js';
 import { coordChip, esc } from '../util/time.js';
 import { BUILDINGS, deLabel } from '../domain.js';
 import { matrix, emptyState } from './components.js';
 
 const lvlOf = (v) => (v && typeof v === 'object' ? v.level : v);
+const num = (n) => Math.round(n).toLocaleString('de-DE');
+
+function safety24h() {
+  const rows = storageSafety(24);
+  if (!rows.length) return emptyState('Keine Gesamtübersicht eingefügt — Speicher & Produktion unbekannt.');
+  const unsafeCount = rows.filter((r) => !r.safe).length;
+  const summary = unsafeCount
+    ? `<div class="desc">⚠ ${unsafeCount} von ${rows.length} Speicherwerten reichen <b>nicht</b> für 24 h plündersichere Produktion. Empfehlung siehe letzte Spalte.</div>`
+    : `<div class="desc">✓ Alle Speicher halten mindestens 24 h Eigenproduktion plündersicher.</div>`;
+
+  // Nach Planet gruppieren: die Koordinaten-Spalte erscheint nur einmal pro
+  // Gruppe (rowspan), statt sich pro Rohstoff-Zeile zu wiederholen.
+  const byPlanet = new Map();
+  for (const r of rows) {
+    if (!byPlanet.has(r.coord)) byPlanet.set(r.coord, []);
+    byPlanet.get(r.coord).push(r);
+  }
+  const body = [...byPlanet.entries()].map(([coord, rs]) => {
+    const groupUnsafe = rs.some((r) => !r.safe);
+    return rs.map((r, i) => `
+    <tr class="${r.safe ? '' : 'unsafe'}${i === 0 ? ' pgroup' : ''}">
+      ${i === 0 ? `<td rowspan="${rs.length}" class="${groupUnsafe ? 'bad' : ''}">${coordChip(coord, 'mine')}</td>` : ''}
+      <td>${esc(deLabel.resource(r.resKey))}</td>
+      <td class="num">${r.level}</td>
+      <td class="num">${num(r.floor)}</td>
+      <td class="num">${num(r.need)}</td>
+      <td class="num ${r.safe ? 'hi' : 'bad'}">${r.safe ? '✓ sicher' : '✗ zu wenig'}</td>
+      <td class="num">${r.safe ? '–' : `Stufe ${r.recLevel}`}</td>
+    </tr>`).join('');
+  }).join('');
+  const table = `<div class="mx-table"><table class="grouped">
+    <thead><tr><th>Planet</th><th>Rohstoff</th><th>Speicher-Stufe</th><th>Sockel (2%)</th>
+    <th>Produktion/24h</th><th>Status</th><th>Empfehlung</th></tr></thead>
+    <tbody>${body}</tbody></table></div>`;
+  return summary + table;
+}
 
 function orders() {
-  const list = state.buildOrders;
+  // Abgeschlossene Aufträge (Fertigzeit liegt in der Vergangenheit) nicht mehr
+  // anzeigen — sonst bleibt der Countdown bei 00:00:00 ewig stehen, weil die
+  // Liste erst beim nächsten Einfügen neuer Daten aktualisiert wird.
+  const list = state.buildOrders.filter((b) => b.at > serverNow());
   if (!list.length) return emptyState('Keine laufenden Bauaufträge.');
   return `<div class="list">${list.map((b) => `
     <div class="item soon">
@@ -59,6 +98,10 @@ export function renderBauen() {
     return emptyState('Noch keine Daten. Füge deine Übersichtsseite oder Gesamtübersicht ein.');
   }
   return `
+    <div class="section">
+      <h2>🛡 Speichersicherheit (24 h)</h2>
+      ${safety24h()}
+    </div>
     <div class="section">
       <h2>⬢ Laufende Bauaufträge</h2>
       <div class="desc">Countdown bis zum Abschluss, live gegen die Serverzeit.</div>

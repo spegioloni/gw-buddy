@@ -30,8 +30,9 @@ Inhalt unverändert ausliefert.
      Flottenbewegungen, Bauaufträge, Rohstoffe des aktiven Planeten.
    - **Gesamtübersicht** (Menü „Punkte → Gesamtübersicht") – liefert alle
      eigenen Planeten mit Gebäuden, Schiffen, Verteidigung und Rohstoffen.
-2. Text oben ins Feld einfügen, `Strg`+`Enter` oder „⚡ Auswerten" klicken.
-   Der Typ wird automatisch erkannt – du musst nichts umschalten.
+2. Das Paste-Feld gehört zum **Lage**-Tab (dort einfügen — die Daten gelten
+   für alle Tabs). `Strg`+`Enter` oder „⚡ Auswerten" klicken. Der Typ wird
+   automatisch erkannt – du musst nichts umschalten.
 3. Beide Ansichten ergänzen sich: einmal eingefügt, bleiben sie erhalten
    (im Browser via `localStorage`), bis du sie neu einfügst oder „Leeren"
    klickst. Deine eigenen Planeten merkt sich die Seite aus der
@@ -45,7 +46,7 @@ Inhalt unverändert ausliefert.
 Alles bleibt ausschließlich lokal im Browser – nichts wird irgendwohin
 hochgeladen.
 
-## Die vier Tabs
+## Die drei Tabs
 
 - **Lage** – Cockpit-Ansicht und wichtigster Bildschirm:
   - Countdown bis zum nächsten Einschlag mit den dort stationierten Schiffen
@@ -95,13 +96,6 @@ steht `◈?` statt einer erfundenen Zahl.
 - **Flotten** – pro Planet gruppiert: was stationiert ist (Schiffe,
   Verteidigung) und was gerade dorthin bzw. von dort wegfliegt. Bedrohte
   Planeten stehen oben.
-- **Zeitachse** – dieselbe Achse wie in der Lage, nur größer und filterbar:
-  alle Ereignisse (Angriffe, Spionage, eigene Hin-/Rückflüge, Handel,
-  Bau-/Forschungsabschlüsse) mit Marker je Typ, Typ-Filtern, umstellbarem
-  Zeitfenster (3/6/12 h oder alles), der Online-Fenster-Leiste und einer
-  chronologischen Liste darunter. Die Uhrzeit steht nur an Einschlägen am
-  Marker, sonst im Tooltip; was rechts aus dem Zeitfenster fällt, wird je
-  Planet als **+n▸** gezählt.
 
 Auf schmalen Bildschirmen (≤ 820 px) wird aus der Desktop-Tabellen-Matrix eine
 Kartenansicht pro Planet, und die Tab-Leiste wird zum Burger-Menü.
@@ -113,7 +107,7 @@ index.html        Grundgerüst (Topbar, Paste-Feld, #view, Drawer)
 styles.css         Theme „Deep Orbit"
 src/
   state.js         zentraler Zustand: Paste-Erkennung, Merge, Persistenz, Serverzeit
-  analysis.js       Ableitungen: Bedrohungen, Online-/Save-Fenster, Rohstoff-Prognose & Beute, kritische Stellen, freie Kapazität, Zeitachse
+  analysis.js       Ableitungen: Bedrohungen, Online-/Save-Fenster, Rohstoff-Prognose & Beute, kritische Stellen, freie Kapazität, gemeinsame Zeitachse (für den Lage-Tab)
   domain.js         kanonische Keys ↔ deutsche Bezeichnungen (Gebäude/Schiffe/Rohstoffe), Speicher-/Sockel-Mathematik
   demo.js           Beispieldaten für „Beispiel laden"
   data/
@@ -126,8 +120,8 @@ src/
     format.js         Zahlen-/Dauer-Parsing, Zellen-Splitting
     time.js           Anzeige-Helfer (Uhrzeit, Countdown, Zahlenformat, Koordinaten-Chip)
   views/
-    lage.js, bauen.js, flotten.js, zeitachse.js, components.js
-    timeline.js       geteilter Gantt-Renderer (Lage + Zeitachse) inkl. Zoom und Fenster-Leiste
+    lage.js, bauen.js, flotten.js, components.js
+    timeline.js       Gantt-Renderer für die Zeitachse im Lage-Tab, inkl. Zoom und Fenster-Leiste
   app.js             Bootstrap: Tabs, Tick-Loop, Alarme, Drawer, Toasts
 test/
   parse.test.mjs      Parser-Regressionstest gegen echte Pastes

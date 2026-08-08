@@ -1,9 +1,12 @@
 // Parser für die "Gesamtübersicht"-Matrix (alle Planeten in Spalten).
 import {
-  splitCells, coordOf, parseGwInt, parseDuration,
+  splitCells, coordOf, parseGwInt, parseGwNumber, parseDuration,
   parseLevelWithCap, parseBuildCell,
 } from '../util/format.js';
 import { buildingKey, shipKey, defenceKey, resourceKey } from '../domain.js';
+
+/** "146,16 ckk" -> 146.16. "-"/"" -> null. */
+const parseCkk = (raw) => parseGwNumber(String(raw ?? '').replace(/ckk/i, ''));
 
 const RES_ROWS = new Set(['Eisen', 'Lutinum', 'Wasser', 'Wasserstoff']);
 
@@ -39,7 +42,7 @@ export function parseGesamt(text) {
     planetCount: null,
     byPlanet: {},
     unknownRows: [],
-    totals: { resources: {}, production: {}, points: null },
+    totals: { resources: {}, production: {}, points: null, ckkShips: null, ckkDefense: null },
   };
 
   let section = 'head';
@@ -53,7 +56,7 @@ export function parseGesamt(text) {
         buildOrder: null,      // {name, level, remainingSec, key}
         shipyardFreeSec: null, // Sekunden bis Schiffsfabrik frei; null = frei/idle
         resources: {}, production: {}, waterUsage: null, tradePost: {},
-        buildings: {}, ships: {}, defense: {},
+        buildings: {}, ships: {}, defense: {}, ckkShips: null, ckkDefense: null,
       };
     }
     return result.byPlanet[coord];
@@ -142,7 +145,15 @@ export function parseGesamt(text) {
     }
 
     if (section === 'ships' || section === 'defense') {
-      if (/\bckk\b/i.test(label)) continue; // ckk-Summenzeile überspringen
+      if (/\bckk\b/i.test(label)) {
+        // ckk-Summenzeile: Kampfkraft pro Planet. Anders als sonst trägt
+        // diese Zeile KEIN Label — cells[0] ist bereits der Wert des ersten
+        // Planeten (deshalb cells[i], nicht cellFor(i)=cells[i+1]).
+        const target = section === 'ships' ? 'ckkShips' : 'ckkDefense';
+        for (let i = 0; i < N; i++) ensure(coords[i])[target] = parseCkk(cells[i]);
+        result.totals[target] = parseCkk(cells[cells.length - 1]);
+        continue;
+      }
       const bag = section === 'ships' ? 'ships' : 'defense';
       const key = section === 'ships' ? shipKey(label) : defenceKey(label);
       // Nur bekannte Schiffe/Verteidigungsanlagen zählen. Alles andere ist

@@ -204,6 +204,7 @@ function newPlanet(coord) {
     coord, mine: state.ownPlanets.has(coord),
     points: null, resources: {}, production: {}, waterUsage: null, tradePost: {},
     buildings: {}, ships: {}, defense: {}, shipyardFreeSec: null, buildOrder: null,
+    ckkShips: null, ckkDefense: null,
     fleets: [], stationedSource: null,
   };
 }
@@ -228,6 +229,7 @@ function buildPlanets() {
         waterUsage: g.waterUsage, tradePost: { ...g.tradePost }, buildings: { ...g.buildings },
         ships: { ...g.ships }, defense: { ...g.defense },
         shipyardFreeSec: g.shipyardFreeSec, buildOrder: g.buildOrder,
+        ckkShips: g.ckkShips, ckkDefense: g.ckkDefense,
         stationedSource: 'gesamt',
       });
     }

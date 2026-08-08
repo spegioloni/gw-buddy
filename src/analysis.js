@@ -1,7 +1,7 @@
 // Ableitungen aus dem State: Bedrohungen, Save-Fenster, freie Kapazität,
 // gemeinsame Zeitachse (Flotten + Bau-/Forschungsabschlüsse).
 import { state, serverNow } from './state.js';
-import { STORAGE_OF, storageCap, protectedAmount, deLabel } from './domain.js';
+import { STORAGE_OF, storageCap, protectedAmount, PROTECTED_SHARE, deLabel } from './domain.js';
 import { PRODUCERS, tableRate } from './data/production.js';
 
 /** Pro Zielplanet: Angriffe, Spionage, eigene Ankünfte, Save-Fenster. */
@@ -202,6 +202,34 @@ export function plunderRisk(coord, at) {
     known: true, loot, stock, safe: loot <= 0, byRes, worst,
     nextUnsafeAt: upcoming.length ? Math.min(...upcoming) : null,
   };
+}
+
+/**
+ * Hält der nicht plünderbare Sockel (2 % der Speicherkapazität) mindestens
+ * `hours` Stunden Eigenproduktion? Geprüft für Eisen, Lutinum, Wasserstoff
+ * (Wasser zählt nicht, siehe PLUNDER_RESOURCES). Wenn nicht: welche
+ * Speicher-Stufe wäre nötig, damit der Sockel die Produktion abdeckt?
+ * @returns {Array<{coord,resKey,level,cap,floor,rate,need,safe,recLevel}>}
+ */
+export function storageSafety(hours = 24) {
+  const rows = [];
+  for (const coord of state.ownPlanets) {
+    const p = state.planets.get(coord);
+    if (!p || !Object.keys(p.resources || {}).length) continue;
+    for (const resKey of PLUNDER_RESOURCES) {
+      const { level, cap, floor } = storageOf(p, resKey);
+      const rate = p.production?.[resKey] ?? 0;
+      const need = rate * hours;
+      const safe = floor >= need;
+      let recLevel = level;
+      if (!safe && rate > 0) {
+        const neededCap = need / PROTECTED_SHARE;
+        recLevel = Math.max(level + 1, Math.ceil(Math.sqrt(Math.max(0, neededCap - 300000) / 60000)));
+      }
+      rows.push({ coord, resKey, level, cap, floor, rate, need, safe, recLevel });
+    }
+  }
+  return rows;
 }
 
 /** Nächster feindlicher Einschlag auf einen bestimmten Planeten. */

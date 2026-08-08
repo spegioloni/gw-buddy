@@ -5,19 +5,20 @@ import { clock, hhmmss, durLong, esc, coordChip } from './util/time.js';
 import { renderLage } from './views/lage.js';
 import { renderBauen } from './views/bauen.js';
 import { renderFlotten } from './views/flotten.js';
-import { renderZeitachse, toggleType } from './views/zeitachse.js';
 import { setZoom } from './views/timeline.js';
 import { DEMO_GESAMT, DEMO_UEBERSICHT } from './demo.js';
 
 const $ = (s) => document.querySelector(s);
-const VIEWS = { lage: renderLage, bauen: renderBauen, flotten: renderFlotten, zeitachse: renderZeitachse };
+const VIEWS = { lage: renderLage, bauen: renderBauen, flotten: renderFlotten };
 let tab = persist.getTab();
+if (!VIEWS[tab]) tab = 'lage';
 const alarmed = new Set();
 
 function render() {
   const fn = VIEWS[tab] || renderLage;
   $('#view').innerHTML = fn();
   document.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  $('#importPanel').hidden = tab !== 'lage';
   renderStatus();
   tick();
 }
@@ -64,12 +65,21 @@ function tick() {
   const clk = $('#clock');
   if (clk) clk.textContent = hhmmss(now);
 
+  let justExpired = false;
   document.querySelectorAll('.cd[data-at]').forEach((el) => {
     const at = +el.dataset.at;
     if (!at) return;
+    const wasPast = el.classList.contains('past');
     el.textContent = clock((at - now) / 1000);
-    el.classList.toggle('past', at < now);
+    const isPast = at < now;
+    el.classList.toggle('past', isPast);
+    if (isPast && !wasPast) justExpired = true;
   });
+  // Sobald ein Countdown auf 0 läuft, den aktuellen Tab neu rendern — sonst
+  // bleiben abgelaufene Bauaufträge/Ankünfte bis zum nächsten Datenimport
+  // in der Liste stehen, weil render() diese sonst nur beim Einfügen neuer
+  // Daten oder Tab-Wechsel herausfiltert.
+  if (justExpired) { render(); return; }
 
   document.querySelectorAll('.gantt[data-from]').forEach((g) => {
     const from = +g.dataset.from, span = +g.dataset.span;
@@ -138,15 +148,13 @@ function init() {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); analyze(); }
   });
 
-  // Zeitachse-Filter und Zoom (Event-Delegation).
+  // Zoom-Stufen der Gantt-Zeitachse (im Lage-Tab).
   $('#view').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-tl]');
-    if (btn) { toggleType(btn.dataset.tl); render(); return; }
     const zoom = e.target.closest('[data-tlzoom]');
     if (zoom) { setZoom(zoom.dataset.tlzoom); render(); }
   });
 
-  // Zeitachse hängt an der Fensterbreite (Marker mit/ohne Uhrzeit) -> neu rendern.
+  // Gantt-Zeitachse hängt an der Fensterbreite (Marker mit/ohne Uhrzeit) -> neu rendern.
   let resizeT;
   window.addEventListener('resize', () => {
     clearTimeout(resizeT);
