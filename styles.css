@@ -188,7 +188,7 @@ details.fold .fbody{padding:0 15px 15px}
 .tl-controls button.off{opacity:.4}
 /* ---------- Zeitachse: Chart ---------- */
 .gantt{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
-  padding:14px 16px 16px;overflow:hidden;--lab-w:244px}
+  padding:14px 16px 16px;overflow:hidden;--lab-w:300px}
 .gantt .axis{position:relative;height:20px;margin-left:var(--lab-w);
   border-bottom:1px solid var(--line2);margin-bottom:2px}
 .gantt .tick{position:absolute;bottom:2px;font-family:var(--fontM);font-size:10px;
@@ -226,6 +226,8 @@ details.fold .fbody{padding:0 15px 15px}
   border-color:color-mix(in srgb,var(--threat) 60%,transparent);color:var(--threat)}
 .tl-win.warn{background:color-mix(in srgb,var(--soon) 20%,transparent);
   border-color:color-mix(in srgb,var(--soon) 48%,transparent);color:var(--soon)}
+.tl-win.safe{background:color-mix(in srgb,var(--safe) 14%,transparent);
+  border-color:color-mix(in srgb,var(--safe) 40%,transparent);color:var(--safe)}
 .tl-win.focus{box-shadow:0 0 0 1px currentColor}
 .tl-win.live{animation:ixpulse 1.8s ease-in-out infinite}
 .tl-win .cap{font-family:var(--fontM);font-size:9px;font-weight:700;white-space:nowrap;
@@ -239,6 +241,8 @@ details.fold .fbody{padding:0 15px 15px}
   border-color:color-mix(in srgb,var(--threat) 55%,transparent)}
 .tl-band.warn{background:color-mix(in srgb,var(--soon) 8%,transparent);
   border-color:color-mix(in srgb,var(--soon) 45%,transparent)}
+.tl-band.safe{background:color-mix(in srgb,var(--safe) 6%,transparent);
+  border-color:color-mix(in srgb,var(--safe) 35%,transparent)}
 
 /* Zeilen */
 .tl-row{position:relative;margin:0;padding:4px 0;border-top:1px solid var(--line2)}
@@ -281,9 +285,18 @@ details.fold .fbody{padding:0 15px 15px}
 .ix.fleet.risk{color:var(--threat);border-color:color-mix(in srgb,var(--threat) 65%,transparent);
   background:color-mix(in srgb,var(--threat) 18%,transparent);font-weight:700;
   animation:ixpulse 1.9s ease-in-out infinite}
+/* Beute: was ein Angreifer mitnehmen kann. "save" = unter dem Sockel. */
+.ix.loot.safe{color:var(--safe);border-color:color-mix(in srgb,var(--safe) 45%,transparent);
+  background:color-mix(in srgb,var(--safe) 14%,transparent)}
+.ix.loot.warn{color:var(--soon);border-color:color-mix(in srgb,var(--soon) 40%,transparent);
+  background:color-mix(in srgb,var(--soon) 10%,transparent)}
+.ix.loot.risk{color:var(--threat);border-color:color-mix(in srgb,var(--threat) 65%,transparent);
+  background:color-mix(in srgb,var(--threat) 18%,transparent);font-weight:700;
+  animation:ixpulse 1.9s ease-in-out infinite}
+.ix.loot.none{opacity:.35;border-style:dashed}
 @keyframes ixpulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--threat) 45%,transparent)}
   50%{box-shadow:0 0 7px 1px color-mix(in srgb,var(--threat) 45%,transparent)}}
-@media (prefers-reduced-motion:reduce){.ix.fleet.risk{animation:none}}
+@media (prefers-reduced-motion:reduce){.ix.fleet.risk,.ix.loot.risk{animation:none}}
 .ix.mini{height:14px;font-size:9.5px;padding:0 3px}
 .tl-legend .sep{width:1px;height:12px;background:var(--line2);padding:0}
 .tl-row .track{position:absolute;inset:0;z-index:2}
@@ -298,12 +311,26 @@ details.fold .fbody{padding:0 15px 15px}
   box-shadow:0 0 6px currentColor}
 .tl-mark i{font-style:normal;font-size:10px;line-height:1}
 .tl-mark em{font-style:normal;color:var(--dim);font-size:10px;letter-spacing:.02em}
+/* Urteil am Einschlag: Schiffe save? Rohstoffe save? */
+.tl-mark .v{text-decoration:none;display:inline-flex;gap:1px;align-items:center;
+  padding-left:2px;margin-left:1px;border-left:1px solid color-mix(in srgb,var(--line2) 90%,transparent)}
+.tl-mark .v b{font-size:9px;line-height:1;font-weight:400}
+.tl-mark .v b.ok{color:var(--safe)}
+.tl-mark .v b.bad{color:var(--threat);text-shadow:0 0 5px color-mix(in srgb,var(--threat) 70%,transparent)}
+.tl-mark .v b.unknown{color:var(--faint);opacity:.5}
+.tl-legend .v{text-decoration:none;display:inline-flex;gap:1px}
+.tl-legend .v b{font-size:10px;font-weight:400}
+.tl-legend .v b.ok{color:var(--safe)} .tl-legend .v b.bad{color:var(--threat)}
 .tl-mark.attack{color:var(--threat)} .tl-mark.build{color:var(--soon)}
 .tl-mark.arrival,.tl-mark.spy{color:var(--own)} .tl-mark.rueck{color:var(--faint)}
 .tl-mark.trade{color:var(--safe)} .tl-mark.research{color:var(--brand)}
 .tl-mark.crit{border-color:color-mix(in srgb,var(--threat) 60%,transparent);
   background:color-mix(in srgb,var(--threat) 18%,#0b1020);font-weight:700}
 .tl-mark.crit em{color:var(--threat)}
+/* Angriff ohne Verlustrisiko (Schiffe + Rohstoffe save): gedämpftes Gelb statt Alarmrot. */
+.tl-mark.attack.safe{color:var(--soon);border-color:color-mix(in srgb,var(--soon) 45%,transparent);
+  background:color-mix(in srgb,var(--soon) 10%,#0b1020)}
+.tl-mark.attack.safe em{color:color-mix(in srgb,var(--soon) 80%,var(--dim))}
 /* Ohne Uhrzeit: die Achse liefert sie ohnehin, exakt steht sie im Tooltip. */
 .tl-mark.mini{padding:0 4px 0 3px;gap:2px}
 .tl-mark.mini.flip{padding:0 3px 0 4px}
@@ -332,6 +359,8 @@ details.fold .fbody{padding:0 15px 15px}
   border:1px solid color-mix(in srgb,var(--threat) 70%,transparent)}
 .tl-legend .sw.warn{background:color-mix(in srgb,var(--soon) 22%,transparent);
   border:1px solid color-mix(in srgb,var(--soon) 55%,transparent)}
+.tl-legend .sw.safe{background:color-mix(in srgb,var(--safe) 18%,transparent);
+  border:1px solid color-mix(in srgb,var(--safe) 55%,transparent)}
 .tl-legend .sw.now{width:3px;background:var(--brand);height:12px;border-radius:2px}
 .tl-legend .sw.dot{width:8px;height:8px;border-radius:50%;box-shadow:0 0 6px currentColor}
 .tl-legend .sw.dot.attack{background:var(--threat);color:var(--threat)}
@@ -339,12 +368,17 @@ details.fold .fbody{padding:0 15px 15px}
 .tl-legend .sw.dot.build{background:var(--soon);color:var(--soon)}
 
 @media (max-width:820px){
-  .gantt{--lab-w:168px;padding:12px 10px 12px}
+  .gantt{--lab-w:232px;padding:12px 10px 12px}
   .tl-row .lab{font-size:10px;padding-right:5px;gap:3px}
   .tl-row .lab .n{display:none}
   .tl-row .lab .ind{gap:2px}
   .ix{height:15px;padding:0 2.5px;font-size:9.5px;gap:1px}
   .ix b{font-size:8px}
+}
+/* Sehr schmal: nur noch die zwei Chips, die beim Angriff zählen. */
+@media (max-width:560px){
+  .gantt{--lab-w:164px}
+  .tl-row .lab .ix.build,.tl-row .lab .ix.yard{display:none}
 }
 /* Schmale Spuren: nur Punkte, Uhrzeit im Tooltip */
 .gantt.dots .tl-mark{padding:0;gap:0;border:0;background:none;transform:translateX(-50%);
@@ -353,6 +387,9 @@ details.fold .fbody{padding:0 15px 15px}
 .gantt.dots .tl-mark .dot{display:none}
 .gantt.dots .tl-mark i{font-size:11px}
 .gantt.dots .tl-mark.crit i{font-size:13px;filter:drop-shadow(0 0 5px var(--threat))}
+.gantt.dots .tl-mark.attack.safe i{filter:drop-shadow(0 0 4px var(--soon))}
+/* Marker am rechten Spurende linksbündig ausrichten, damit nichts herausragt. */
+.gantt.dots .tl-mark.edge{transform:translateX(-100%)}
 .gantt.dots .ix{height:14px}
 
 /* ---------- Online-Fenster (Lage) ---------- */
@@ -365,6 +402,8 @@ details.fold .fbody{padding:0 15px 15px}
   background:linear-gradient(90deg,color-mix(in srgb,var(--threat) 9%,transparent),transparent 55%)}
 .win.warn{border-left-color:var(--soon);
   background:linear-gradient(90deg,color-mix(in srgb,var(--soon) 8%,transparent),transparent 55%)}
+.win.safe{border-left-color:var(--safe);
+  background:linear-gradient(90deg,color-mix(in srgb,var(--safe) 7%,transparent),transparent 55%)}
 .win.live{box-shadow:0 0 0 1px color-mix(in srgb,var(--threat) 45%,transparent)}
 .win .rng{display:flex;flex-direction:column;align-items:flex-start;min-width:104px;
   font-family:var(--fontM);line-height:1.25}
@@ -373,6 +412,7 @@ details.fold .fbody{padding:0 15px 15px}
 .win .rng em{font-style:normal;font-size:11px;color:var(--dim);margin-top:3px}
 .win.critical .rng b{color:var(--threat)}
 .win.warn .rng b{color:var(--soon)}
+.win.safe .rng b{color:var(--safe)}
 .win .grow{flex:1;min-width:0}
 .win .ttl{font-weight:600;font-size:13.5px}
 .win .sub{font-size:12px;color:var(--dim);display:flex;gap:6px;align-items:center;

@@ -41,7 +41,7 @@ export function renderZeitachse() {
   const shown = all.filter((e) => activeTypes.has(e.type));
   const wins = saveWindows();
   return `<div class="section">
-    <div class="desc">Alle Ereignisse auf einer Achse — Feindeinschläge, eigene Flüge und Bau-/Forschungsabschlüsse. Marker je Typ, oben filterbar. Die Leiste unter der Achse zeigt die Online-Fenster aus der Lage; getönt ist nur das laufende bzw. nächste. Statuschips links je Planet: <b>⬟ Flotte</b>, <b>⌂ Bauplatz</b>, <b>⚒ Werft</b> — grün frei, orange belegt mit Restzeit. Uhrzeit steht nur an Einschlägen, sonst im Tooltip.</div>
+    <div class="desc">Alle Ereignisse auf einer Achse — Feindeinschläge, eigene Flüge und Bau-/Forschungsabschlüsse, oben nach Typ filterbar. Am Einschlag steht <b>⬟◈</b>: sind die <b>Schiffe</b> save, sind die <b>Rohstoffe</b> save? Die Rohstoffe werden auf den Einschlagszeitpunkt hochgerechnet — aus Bestand, Förderung, Speicherdeckel und laufenden Minenausbauten. Nicht plünderbar sind 2 % der Speicherkapazität; Wasser zählt nicht mit. Statuschips links je Planet: <b>⬟ Flotte</b>, <b>◈ Beute</b>, <b>⌂ Bauplatz</b>, <b>⚒ Werft</b>.</div>
     ${controls(counts)}
     ${bandLegend(wins)}
     ${gantt(shown, { windows: wins })}

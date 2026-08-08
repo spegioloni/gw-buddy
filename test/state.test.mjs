@@ -126,6 +126,84 @@ ok(fc3.any.length === 3, 'Union der freien Kapazitäten = 3, got ' + fc3.any.len
 ok(fc3.idleYard.includes('12:99:4') && state.planets.get('12:99:4').buildOrder,
   'idle Werft trotz laufendem Gebäudebau wird erkannt');
 
+/* ---------- Sind die Rohstoffe save? ---------- */
+const D = await import('../src/domain.js');
+const P = await import('../src/data/production.js');
+
+// Speicherkapazität und Sockel gegen die Spielwerte.
+ok(D.storageCap(0) === 300000, 'Speicher Stufe 0 = 300.000');
+ok(D.storageCap(1) === 360000, 'Speicher Stufe 1 = 360.000');
+ok(D.storageCap(10) === 6300000, 'Speicher Stufe 10 = 6.300.000');
+ok(D.storageCap(19) === 21960000, 'Speicher Stufe 19 = 21.960.000');
+ok(D.storageCap(20) === 24300000, 'Speicher Stufe 20 = 24.300.000');
+ok(D.protectedAmount(D.storageCap(1)) === 7200, 'Sockel Stufe 1 = 7.200');
+ok(D.protectedAmount(D.storageCap(13)) === 208800, 'Sockel Stufe 13 = 208.800');
+ok(D.protectedAmount(D.storageCap(20)) === 486000, 'Sockel Stufe 20 = 486.000');
+
+// Produktionstabellen (Stichproben aus minenstufen.md).
+ok(P.tableRate('ironMine', 16) === 2638, 'Eisenmine 16 = 2.638/h');
+ok(P.tableRate('lutinumRefinery', 1) === 20, 'Lutinumraffinerie 1 = 20/h');
+ok(P.tableRate('extendedChemicalFactory', 12) === 4611, 'Erw. Chemiefabrik 12 = 4.611/h');
+ok(P.tableRate('ironMine', 0) === 0, 'Stufe 0 produziert nichts');
+
+clearAll();
+ingest(read('gesamt.txt'));
+ingest(read('uebersicht.txt'));
+const ref = state.refAt;
+
+// Wasser wird bewusst ignoriert.
+ok(!A.PLUNDER_RESOURCES.includes('water'), 'Wasser zählt nicht als Beute');
+ok(A.PLUNDER_RESOURCES.length === 3, 'genau Eisen, Lutinum, Wasserstoff');
+
+// 12:101:5: Speicher 19 schützt 439.200 — 344.241 Eisen liegen darunter.
+const risk0 = A.plunderRisk('12:101:5', ref);
+const iron0 = risk0.byRes.find((r) => r.key === 'iron');
+console.log('12:101:5 @Snapshot: Eisen', iron0.stock, '/ Sockel', iron0.floor, '-> Beute', risk0.loot);
+ok(risk0.known, 'Beute für eigenen Planeten bekannt');
+ok(iron0.cap === 21960000, 'Kapazität aus der Klammer der Gesamtübersicht');
+ok(iron0.floor === 439200, 'Sockel 439.200, got ' + iron0.floor);
+ok(iron0.stock === 344241, 'Bestand zum Snapshot unverändert, got ' + iron0.stock);
+ok(risk0.safe && risk0.loot === 0, 'zum Snapshot alles unter dem Sockel');
+
+// Hochrechnung: 16.925 Eisen/h -> nach 10 h sind 344.241+169.250 immer noch save,
+// der Sockel wird erst später überschritten.
+const iron10 = A.resourceAt(state.planets.get('12:101:5'), 'iron', ref + 10 * 3600e3);
+ok(Math.abs(iron10.stock - (344241 + 169250)) <= 1, 'lineare Förderung, got ' + iron10.stock);
+ok(iron10.unsafeAt != null && iron10.unsafeAt > ref, 'Zeitpunkt für "wird plünderbar" berechnet');
+const hoursToUnsafe = (iron10.unsafeAt - ref) / 3600e3;
+ok(Math.abs(hoursToUnsafe - (439200 - 344241) / 16925) < 0.01,
+  'unsafeAt trifft den Sockel, got ' + hoursToUnsafe.toFixed(2) + 'h');
+
+// Speicherdeckel: nach 10 Jahren steht der Bestand exakt auf der Kapazität.
+const ironFull = A.resourceAt(state.planets.get('12:101:5'), 'iron', ref + 87600 * 3600e3);
+ok(ironFull.stock === 21960000 && ironFull.full, 'Bestand wird am Speicher gedeckelt');
+ok(ironFull.loot === 21960000 - 439200, 'volle Beute = Kapazität minus Sockel');
+
+// Laufender Minenausbau hebt die Rate ab Fertigstellung (Eisenmine 15 -> 16).
+const p445 = state.planets.get('12:44:5');
+const up = A.resourceAt(p445, 'iron', ref + 10 * 3600e3);
+console.log('12:44:5 Eisen: Rate', up.rate, '-> ', up.rateLater, 'ab Ausbau auf Stufe', up.upgrade?.level);
+ok(up.upgrade?.level === 16, 'Ausbau der Eisenmine auf Stufe 16 erkannt');
+ok(up.rateLater - up.rate === 2638 - 2306, 'Ratensprung = Tabellendifferenz, got ' + (up.rateLater - up.rate));
+const doneH = p445.buildOrder.remainingSec / 3600;
+const expect445 = 1880 + 2327 * doneH + (2327 + 332) * (10 - doneH);
+ok(Math.abs(up.stock - expect445) <= 2, 'Bestand stückweise integriert, got ' + up.stock);
+
+// Ein Ausbau, der keinen Rohstoff betrifft, ändert die Rate nicht.
+const lut445 = A.resourceAt(p445, 'lutinum', ref + 10 * 3600e3);
+ok(lut445.upgrade === null && lut445.rate === lut445.rateLater,
+  'Eisenminen-Ausbau lässt Lutinum unberührt');
+
+// Fremde Planeten liefern kein Ergebnis statt einer erfundenen Zahl.
+ok(!A.plunderRisk('12:40:2', ref).known, 'fremder Planet: Beute unbekannt');
+
+// planetStatus rechnet auf den nächsten Einschlag statt auf jetzt.
+const impact445 = A.nextImpactOn('12:44:5');
+ok(!!impact445, '12:44:5 hat einen Einschlag');
+const st445 = A.planetStatus('12:44:5');
+ok(st445.loot.forImpact && st445.loot.at === impact445.at,
+  'Beute-Chip zeigt den Stand zum Einschlag');
+
 console.log(`\n${fail === 0 ? '✅' : '❌'}  ${pass} ok, ${fail} fehlgeschlagen`);
 process.exit(fail === 0 ? 0 : 1);
 

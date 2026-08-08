@@ -75,3 +75,27 @@ export const deLabel = {
   defence: (key) => DEFENSE.find((d) => d.key === key)?.de ?? key,
   resource: (key) => RESOURCES.find((r) => r.key === key)?.de ?? key,
 };
+
+/* ---------- Speicher: Kapazität und nicht plünderbarer Sockel ---------- */
+
+/** Welches Speichergebäude deckelt welchen Rohstoff. */
+export const STORAGE_OF = {
+  iron: 'ironStorage',
+  lutinum: 'lutinumStorage',
+  water: 'waterStorage',
+  hydrogen: 'hydrogenStorage',
+};
+
+/**
+ * Speicherkapazität einer Ausbaustufe. Die Reihe 300k/360k/540k/840k/1,26M …
+ * wächst quadratisch — geprüft gegen die Spielwerte bis Stufe 20.
+ * Die Gesamtübersicht liefert die Kapazität meist selbst ("19 (21.960.000)");
+ * diese Formel ist der Rückfall, wenn die Klammer fehlt.
+ */
+export const storageCap = (level) => 300000 + 60000 * level * level;
+
+/** Anteil der Kapazität, den ein Angreifer nicht mitnehmen kann. */
+export const PROTECTED_SHARE = 0.02;
+
+/** Nicht plünderbarer Sockel — exakt 2 % der Speicherkapazität. */
+export const protectedAmount = (cap) => Math.round(cap * PROTECTED_SHARE);

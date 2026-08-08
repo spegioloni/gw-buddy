@@ -80,8 +80,11 @@ function threatCard(t) {
 /* ---------- Online-/Save-Fenster ---------- */
 
 function windowCard(w, i) {
-  const label = w.active ? 'läuft jetzt' : `beginnt in`;
+  const label = w.active ? 'läuft jetzt' : w.optional ? 'optional in' : `beginnt in`;
   const chips = [];
+  if (w.optional) {
+    chips.push('<span class="chip free">nichts zu verlieren — Online-Zeit optional</span>');
+  }
   if (w.stationedCoords.length) {
     chips.push(`<span class="chip crit">Flotte im Feuer auf ${w.stationedCoords.map((c) => coordChip(c, 'mine')).join(' ')}</span>`);
   }
@@ -164,15 +167,15 @@ export function renderLage() {
 
   return `${hero()}${signals(threats)}
     <div class="section">
-      <h2>🕒 Wann du online sein musst</h2>
-      <div class="desc">Zusammenhängende Zeitbereiche, in denen du zum Saven am Rechner sein musst — inklusive ${SAVE_LEAD_MIN} min Vorlauf vor jedem Einschlag. Dicht aufeinanderfolgende Einschläge sind zu einer Session gebündelt.</div>
-      ${windowSection(wins)}
-    </div>
-    <div class="section">
       <h2>▤ Zeitachse</h2>
-      <div class="desc">Alle Ereignisse auf einer Achse. Die Leiste direkt unter der Achse zeigt die Online-Fenster von oben — getönt ist nur das laufende bzw. nächste. Der sichtbare Zeitraum ist links oben umstellbar; was danach kommt, steht als <b>+n▸</b> am rechten Rand. Links je Planet drei Statuschips — <b>⬟ Flotte</b> (rot = steht im Einschlag), <b>⌂ Bauplatz</b> und <b>⚒ Werft</b>: grün <b>frei</b>, orange = belegt mit Restzeit. Planeten ohne Ereignisse stehen gesammelt unter dem Chart.</div>
+      <div class="desc">Beantwortet je Einschlag die zwei Fragen, die zählen: <b>sind die Schiffe save</b> und <b>sind die Rohstoffe save</b>. Am Angriffsmarker steht beides als <b>⬟◈</b> — grün heißt, dort ist nichts zu holen. Die Rohstoffe sind auf den Einschlagszeitpunkt hochgerechnet (Förderung, Speicherdeckel und laufende Minenausbauten); nicht plünderbar sind 2 % der Speicherkapazität, Wasser zählt nicht mit. Die Leiste unter der Achse zeigt die Online-Fenster von oben — getönt ist nur das laufende bzw. nächste. Links je Planet <b>⬟ Flotte</b>, <b>◈ Beute</b>, <b>⌂ Bauplatz</b>, <b>⚒ Werft</b>. Planeten ohne Ereignisse stehen gesammelt unter dem Chart.</div>
       ${bandLegend(wins)}
       ${events.length ? gantt(events, { windows: wins }) : emptyState('Noch keine Ereignisse. Füge deine Übersichtsseite ein.')}
+    </div>
+    <div class="section">
+      <h2>🕒 Wann du online sein musst</h2>
+      <div class="desc">Zusammenhängende Zeitbereiche, in denen du zum Saven am Rechner sein musst — inklusive ${SAVE_LEAD_MIN} min Vorlauf vor jedem Einschlag. Dicht aufeinanderfolgende Einschläge sind zu einer Session gebündelt. Ist in einem Fenster alles save (keine Flotte, keine plünderbaren Rohstoffe), ist die Online-Zeit optional.</div>
+      ${windowSection(wins)}
     </div>
     <div class="section">
       <h2>☠ Kritische Stellen</h2>

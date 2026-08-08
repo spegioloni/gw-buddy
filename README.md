@@ -59,9 +59,36 @@ hochgeladen.
     stationierte Flotte); getönt ist nur das laufende bzw. nächste Fenster.
     Angegriffene Planeten stehen oben, ruhige gesammelt darunter.
   - **Kritische Stellen** – nach Schweregrad sortiert: Verlustrisiko
-    (Schiffe stehen beim Einschlag da), eigene Landung kurz vor dem
+    (Schiffe stehen beim Einschlag da), plünderbare Rohstoffe beim Einschlag,
+    eigene Landung kurz vor dem
     Einschlag, Rückflüge die zu spät kommen, zeitgleiche Einschläge.
   - Signal-Kacheln, bedrohte Planeten und freie Kapazität.
+
+### Sind die Schiffe save? Sind die Rohstoffe save?
+
+Das sind die zwei Fragen, die bei einem Angriff zählen, und genau die
+beantwortet die Zeitachse aus der Kombination *beider* Pastes: die
+Übersichtsseite liefert die Flugzeiten, die Gesamtübersicht die Bestände,
+Förderraten und Speicherstufen.
+
+- **⬟ Schiffe** – wie viele Schiffe zum Einschlagszeitpunkt auf dem Planeten
+  stehen (stationiert plus alles, was vorher landet, minus alles, was vorher
+  startet). `⬟–` heißt: leer, nichts zu verlieren.
+- **◈ Beute** – wie viel ein Angreifer mitnehmen könnte. Pro Rohstoff gilt
+  `Beute = max(0, Bestand − Sockel)`, mit `Sockel = 2 % der Speicherkapazität`
+  und `Kapazität = 300.000 + 60.000 · Stufe²`. Die Kapazität wird direkt aus
+  der Gesamtübersicht gelesen; die Formel ist nur der Rückfall.
+  **Wasser bleibt bewusst außen vor** – das darf geplündert werden.
+- Der Bestand wird auf den Einschlagszeitpunkt **hochgerechnet**: aus der
+  gemessenen Förderrate, gedeckelt durch den Speicher. Fertig werdende
+  Minenausbauten innerhalb des Prognosefensters erhöhen die Rate ab ihrer
+  Fertigstellung – dafür dienen die Tabellen in `src/data/production.js`,
+  und zwar ausschließlich als *Differenz* (Stufe n minus Stufe n−1), weil die
+  reale Rate zusätzlich eine planetenabhängige Grundproduktion enthält.
+
+Am Angriffsmarker steht das Urteil als `⬟◈` direkt dran, in der Planetenzeile
+als Chip. Grün = save, rot = da ist was zu holen. Fehlt die Gesamtübersicht,
+steht `◈?` statt einer erfundenen Zahl.
 - **Bauen & Forschen** – laufende Bauaufträge mit Countdown, freie Kapazität
   (Planeten ohne Auftrag / mit leerer Schiffsfabrik), Forschungszentren, und
   aufklappbar die vollständige Gebäude-Matrix aller Planeten.
@@ -86,9 +113,11 @@ index.html        Grundgerüst (Topbar, Paste-Feld, #view, Drawer)
 styles.css         Theme „Deep Orbit"
 src/
   state.js         zentraler Zustand: Paste-Erkennung, Merge, Persistenz, Serverzeit
-  analysis.js       Ableitungen: Bedrohungen, Online-/Save-Fenster, kritische Stellen, freie Kapazität, Zeitachse
-  domain.js         kanonische Keys ↔ deutsche Bezeichnungen (Gebäude/Schiffe/Rohstoffe)
+  analysis.js       Ableitungen: Bedrohungen, Online-/Save-Fenster, Rohstoff-Prognose & Beute, kritische Stellen, freie Kapazität, Zeitachse
+  domain.js         kanonische Keys ↔ deutsche Bezeichnungen (Gebäude/Schiffe/Rohstoffe), Speicher-/Sockel-Mathematik
   demo.js           Beispieldaten für „Beispiel laden"
+  data/
+    production.js    Förderraten je Gebäudestufe (nur für Ausbau-Differenzen)
   parse/
     detect.js        erkennt Übersichtsseite vs. Gesamtübersicht
     uebersicht.js     parst Flotten, Bauaufträge, Rohstoffe des aktiven Planeten

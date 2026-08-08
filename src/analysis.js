@@ -1,6 +1,8 @@
 // Ableitungen aus dem State: Bedrohungen, Save-Fenster, freie Kapazität,
 // gemeinsame Zeitachse (Flotten + Bau-/Forschungsabschlüsse).
 import { state, serverNow } from './state.js';
+import { STORAGE_OF, storageCap, protectedAmount, deLabel } from './domain.js';
+import { PRODUCERS, tableRate } from './data/production.js';
 
 /** Pro Zielplanet: Angriffe, Spionage, eigene Ankünfte, Save-Fenster. */
 export function threatAnalysis() {
@@ -52,6 +54,129 @@ export function stationedSummary(planet) {
   return { ships, defense, total, defTotal, hasAny: total + defTotal > 0 };
 }
 
+/* ---------- Sind die Rohstoffe save? ---------- */
+
+// Wasser bleibt bewusst außen vor: es darf ruhig geplündert werden.
+export const PLUNDER_RESOURCES = ['iron', 'lutinum', 'hydrogen'];
+
+const lvlOf = (v) => (v && typeof v === 'object' ? v.level : v) ?? 0;
+
+/** Kapazität und nicht plünderbarer Sockel eines Rohstoffspeichers. */
+function storageOf(planet, resKey) {
+  const entry = planet.buildings?.[STORAGE_OF[resKey]];
+  const level = lvlOf(entry);
+  // Die Gesamtübersicht nennt die Kapazität in Klammern — die ist maßgeblich,
+  // weil sie den tatsächlichen Wert des Spielstands zeigt.
+  const cap = (entry && typeof entry === 'object' && entry.cap != null)
+    ? entry.cap : storageCap(level);
+  return { level, cap, floor: protectedAmount(cap) };
+}
+
+/**
+ * Förderrate über die Zeit als Segmente. Die Gesamtübersicht liefert die
+ * aktuelle Rate inklusive Planeten-Grundproduktion; ein laufender Minenausbau
+ * hebt sie ab seiner Fertigstellung um die Tabellendifferenz der beiden Stufen.
+ * Dadurch bleibt die kalibrierte Grundproduktion des Planeten erhalten.
+ */
+function rateSegments(planet, resKey, ref) {
+  const base = planet.production?.[resKey] ?? 0;
+  const bo = planet.buildOrder;
+  if (!bo?.key || !PRODUCERS[resKey]?.includes(bo.key) || bo.remainingSec == null) {
+    return [{ from: ref, to: Infinity, rate: base }];
+  }
+  const doneAt = ref + bo.remainingSec * 1000;
+  const delta = tableRate(bo.key, bo.level) - tableRate(bo.key, bo.level - 1);
+  return [
+    { from: ref, to: doneAt, rate: base },
+    { from: doneAt, to: Infinity, rate: base + delta, upgrade: { key: bo.key, level: bo.level, at: doneAt, delta } },
+  ];
+}
+
+/** Bestand zu einem Zeitpunkt, segmentweise integriert und am Speicher gedeckelt. */
+function stockAt(segs, start, cap, at) {
+  let stock = Math.max(0, Math.min(cap, start));
+  for (const s of segs) {
+    const to = Math.min(s.to, at);
+    if (to <= s.from) break;
+    stock = Math.max(0, Math.min(cap, stock + s.rate * ((to - s.from) / 3600e3)));
+    if (s.to >= at) break;
+  }
+  return stock;
+}
+
+/** Erster Zeitpunkt, zu dem der Bestand `level` erreicht — null = nie. */
+function crossesAt(segs, start, cap, level) {
+  if (level > cap) return null;
+  let stock = Math.max(0, Math.min(cap, start));
+  if (stock >= level) return segs[0].from;
+  for (const s of segs) {
+    if (s.rate <= 0) {
+      if (!Number.isFinite(s.to)) return null;
+      stock = Math.max(0, stock + s.rate * ((s.to - s.from) / 3600e3));
+      continue;
+    }
+    const need = ((level - stock) / s.rate) * 3600e3;
+    if (s.from + need <= s.to) return s.from + need;
+    stock = Math.min(cap, stock + s.rate * ((s.to - s.from) / 3600e3));
+  }
+  return null;
+}
+
+/**
+ * Bestand eines Rohstoffs zu einem Zeitpunkt hochrechnen.
+ * Basis ist der Snapshot der eingefügten Ansichten (state.refAt).
+ * @returns {{key,level,cap,floor,rate,stock,loot,full,unsafeAt,fullAt,upgrade}}
+ */
+export function resourceAt(planet, resKey, at) {
+  const ref = state.refAt ?? serverNow();
+  const { level, cap, floor } = storageOf(planet, resKey);
+  const start = planet.resources?.[resKey] ?? 0;
+  const segs = rateSegments(planet, resKey, ref);
+  const stock = stockAt(segs, start, cap, Math.max(ref, at));
+  const last = segs[segs.length - 1];
+  return {
+    key: resKey, level, cap, floor,
+    rate: segs[0].rate, rateLater: last.rate, upgrade: last.upgrade ?? null,
+    stock: Math.round(stock),
+    loot: Math.max(0, Math.round(stock - floor)),
+    full: stock >= cap,
+    unsafeAt: crossesAt(segs, start, cap, floor),
+    fullAt: crossesAt(segs, start, cap, cap),
+  };
+}
+
+/**
+ * Beantwortet für einen Zeitpunkt: sind die Rohstoffe save?
+ * "Save" heißt, der Bestand von Eisen, Lutinum und Wasserstoff liegt unter dem
+ * nicht plünderbaren Sockel (2 % der Speicherkapazität) — dann geht der
+ * Angreifer leer aus. Wasser zählt bewusst nicht mit.
+ * @returns {{known,loot,stock,safe,byRes,worst,nextUnsafeAt}}
+ */
+export function plunderRisk(coord, at) {
+  const p = state.planets.get(coord);
+  // Ohne Gesamtübersicht fehlen Bestände, Förderung und Speicherstufen.
+  if (!p || !Object.keys(p.resources || {}).length) {
+    return { known: false, loot: 0, stock: 0, safe: false, byRes: [], worst: null, nextUnsafeAt: null };
+  }
+  const byRes = PLUNDER_RESOURCES.map((k) => resourceAt(p, k, at));
+  const loot = byRes.reduce((s, r) => s + r.loot, 0);
+  const stock = byRes.reduce((s, r) => s + r.stock, 0);
+  const worst = byRes.filter((r) => r.loot > 0).sort((a, b) => b.loot - a.loot)[0] ?? null;
+  // Wann kippt der erste Rohstoff über den Sockel? (nur relevant, solange save)
+  const upcoming = byRes.map((r) => r.unsafeAt).filter((t) => t != null && t > at);
+  return {
+    known: true, loot, stock, safe: loot <= 0, byRes, worst,
+    nextUnsafeAt: upcoming.length ? Math.min(...upcoming) : null,
+  };
+}
+
+/** Nächster feindlicher Einschlag auf einen bestimmten Planeten. */
+export function nextImpactOn(coord, from = serverNow()) {
+  return state.fleets
+    .filter((e) => e.hostile && e.ziel === coord && e.at >= from - 1000)
+    .sort((a, b) => a.at - b.at)[0] || null;
+}
+
 /**
  * Freie Kapazität — zwei unabhängige Dinge:
  *  - noBuild:  kein laufender Gebäude-Bauauftrag
@@ -72,11 +197,14 @@ export function freeCapacity() {
 
 /**
  * Status-Indikatoren eines Planeten für die Zeitachse — bewusst grob:
- * „steht da was?", „ist der Bauplatz frei?", „ist die Werft frei?".
+ * „steht was rum?", „sind die Rohstoffe save?", „ist Bauplatz/Werft frei?".
+ * Der Rohstoff-Teil rechnet auf den nächsten Einschlag hoch, denn genau dann
+ * entscheidet sich, ob es etwas zu holen gibt.
  * Fremde Planeten liefern {mine:false} und bekommen keine Indikatoren.
- * @returns {{mine:boolean, stationed?:object, build?:object, yard?:object}}
+ * @param at  Zeitpunkt für die Rohstoff-Prognose; default = nächster Einschlag
+ * @returns {{mine:boolean, stationed?:object, loot?:object, build?:object, yard?:object}}
  */
-export function planetStatus(coord) {
+export function planetStatus(coord, at = null) {
   const p = state.planets.get(coord);
   const mine = state.ownPlanets.has(coord);
   if (!mine || !p) return { mine: false };
@@ -101,7 +229,11 @@ export function planetStatus(coord) {
       ? { free: true, level: yardLvl }
       : { free: false, level: yardLvl, at: ref + p.shipyardFreeSec * 1000 };
 
-  return { mine: true, stationed: stationedSummary(p), build, yard };
+  const imp = nextImpactOn(coord);
+  const lootAt = at ?? imp?.at ?? serverNow();
+  const loot = { ...plunderRisk(coord, lootAt), at: lootAt, forImpact: at == null && !!imp };
+
+  return { mine: true, stationed: stationedSummary(p), loot, build, yard };
 }
 
 /* ---------- Online-/Save-Fenster ---------- */
@@ -158,12 +290,27 @@ export function saveWindows({ leadSec = SAVE_LEAD_SEC } = {}) {
     const builds = state.buildOrders.filter(
       (o) => o.at >= b.from && o.at <= b.to && coords.includes(o.coord));
 
-    const level = stationedCoords.length ? 'critical' : 'warn';
+    // Beute, die in diesem Fenster auf dem Tisch liegt — je Planet zum
+    // Zeitpunkt seines eigenen Einschlags, nicht zum Fensterende.
+    let lootTotal = 0;
+    const lootCoords = [];
+    for (const c of coords) {
+      const first = b.impacts.find((e) => e.ziel === c);
+      const risk = plunderRisk(c, first ? first.at : b.to);
+      if (risk.known && risk.loot > 0) { lootTotal += risk.loot; lootCoords.push(c); }
+    }
+
+    // Kritisch: Flotte steht im Feuer oder landet mitten im Fenster.
+    // Warn: nichts stationiert, aber es gibt Beute zu holen.
+    // Safe: weder Flotte noch Rohstoffe in Gefahr — Online-Zeit ist optional.
+    const level = stationedCoords.length || landings.length
+      ? 'critical' : lootCoords.length ? 'warn' : 'safe';
     const gapBeforeSec = prevEnd != null ? (b.from - prevEnd) / 1000 : null;
     prevEnd = b.to;
 
     return {
       ...b, coords, stationedCoords, landings, builds, level,
+      lootTotal, lootCoords, optional: level === 'safe',
       durationSec: (b.to - b.from) / 1000,
       startsInSec: (b.from - now) / 1000,
       endsInSec: (b.to - now) / 1000,
@@ -189,6 +336,16 @@ export function criticalPoints() {
       out.push({
         kind: 'loss', at: imp.at, coord: imp.ziel, level: 'critical',
         text: `${st.total ? `${st.total} Schiffe` : ''}${st.total && st.defTotal ? ' + ' : ''}${st.defTotal ? `${st.defTotal} Verteidigung` : ''} stehen beim Einschlag ungeschützt`,
+      });
+    }
+    // Rohstoffe über dem nicht plünderbaren Sockel — hochgerechnet auf den Einschlag.
+    const risk = plunderRisk(imp.ziel, imp.at);
+    if (risk.known && risk.loot > 0) {
+      const top = risk.byRes.filter((r) => r.loot > 0)
+        .map((r) => `${Math.round(r.loot).toLocaleString('de-DE')} ${deLabel.resource(r.key)}`).join(', ');
+      out.push({
+        kind: 'loot', at: imp.at, coord: imp.ziel, level: 'critical',
+        text: `${risk.loot.toLocaleString('de-DE')} Rohstoffe plünderbar beim Einschlag (${top})`,
       });
     }
     // Eigene Flotte landet kurz vor dem Einschlag auf demselben Planeten.
