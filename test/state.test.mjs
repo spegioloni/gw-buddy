@@ -57,7 +57,8 @@ const tl = A.timelineEvents();
 const builds = tl.filter((e) => e.type === 'build');
 const attacks = tl.filter((e) => e.type === 'attack');
 console.log('timeline:', tl.length, '| builds:', builds.length, '| attacks:', attacks.length);
-ok(tl.length === 28, 'timeline 22+6=28, got ' + tl.length);
+ok(tl.every((e) => state.ownPlanets.has(e.coord)), 'timeline nur eigene Planeten');
+ok(tl.length === 25, 'timeline 19+6=25, got ' + tl.length);
 ok(builds.length === 6, 'timeline builds 6, got ' + builds.length);
 
 const ni = A.nextImpact();

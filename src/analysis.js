@@ -451,10 +451,17 @@ const TL_TYPES = {
 };
 export const timelineTypes = TL_TYPES;
 
-/** Gemeinsame Zeitachse aus Flotten + Bauabschlüssen (+ Forschung, falls vorhanden). */
+/**
+ * Gemeinsame Zeitachse aus Flotten + Bauabschlüssen (+ Forschung, falls vorhanden).
+ * Nur Ereignisse auf eigenen Planeten — Flüge auf fremde Koordinaten (eigene
+ * Angriffe, Spionage nach außen) blähen die Achse auf, ohne dass dort etwas
+ * zu entscheiden wäre.
+ */
 export function timelineEvents() {
   const out = [];
+  const mine = (c) => state.ownPlanets.size === 0 || state.ownPlanets.has(c);
   for (const e of state.fleets) {
+    if (!mine(e.ziel)) continue;
     let type = 'arrival';
     if (e.hostile) type = 'attack';
     else if (e.spy) type = 'spy';
@@ -466,6 +473,7 @@ export function timelineEvents() {
     });
   }
   for (const b of state.buildOrders) {
+    if (!mine(b.coord)) continue;
     out.push({
       at: b.at, type: 'build', coord: b.coord, from: null,
       label: `${b.name} → Stufe ${b.level}`, meta: b,
