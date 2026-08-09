@@ -75,7 +75,7 @@ function untilShort(at) {
 }
 
 /**
- * Vier Ampeln pro Planetenzeile: Flotte · Beute · Bauplatz · Werft.
+ * Vier Ampeln pro Planetenzeile: Flotte · Ressourcen · Bauplatz · Werft.
  * Die ersten beiden beantworten die Angriffsfrage — sind die Schiffe save,
  * sind die Rohstoffe save? Die Beute ist auf den nächsten Einschlag
  * hochgerechnet, denn genau dann entscheidet sich, was zu holen ist.
@@ -85,7 +85,7 @@ function untilShort(at) {
 function indicators(coord, atRisk) {
   const s = planetStatus(coord);
   if (!s.mine) {
-    return '<span class="ind foreign" title="Fremder Planet — keine eigenen Daten">···</span>';
+    return '<span class="ind-list foreign" title="Fremder Planet — keine eigenen Daten">···</span>';
   }
 
   const st = s.stationed;
@@ -113,11 +113,11 @@ function indicators(coord, atRisk) {
       ? `Werft FREI — Schiffsfabrik Stufe ${y.level} baut nichts`
       : `Werft BELEGT${relTime(y.at)}`;
 
-  return `<span class="ind">
-    <i class="ix fleet ${fleetCls}" title="${esc(fleetTitle)}">⬟<b>${fleetNum}</b></i>
+  return `<span class="ind-list">
+    <i class="ix fleet ${fleetCls}" title="${esc(fleetTitle)}"><s>⬟</s><em>Flotte</em><b>${fleetNum}</b></i>
     ${lootChip(s.loot, atRisk)}
-    <i class="ix build ${b.free ? 'free' : 'busy'}" title="${esc(bTitle)}">⌂<b>${b.free ? 'frei' : untilShort(b.at)}</b></i>
-    <i class="ix yard ${y.none ? 'none' : y.free ? 'free' : 'busy'}" title="${esc(yTitle)}">⚒<b>${y.none ? '—' : y.free ? 'frei' : untilShort(y.at)}</b></i>
+    <i class="ix build ${b.free ? 'free' : 'busy'}" title="${esc(bTitle)}"><s>⌂</s><em>Bauplatz</em><b>${b.free ? 'frei' : untilShort(b.at)}</b></i>
+    <i class="ix yard ${y.none ? 'none' : y.free ? 'free' : 'busy'}" title="${esc(yTitle)}"><s>⚒</s><em>Werft</em><b>${y.none ? '—' : y.free ? 'frei' : untilShort(y.at)}</b></i>
   </span>`;
 }
 
@@ -127,7 +127,7 @@ function indicators(coord, atRisk) {
  */
 function lootChip(loot, atRisk, mini = false) {
   if (!loot?.known) {
-    return `<i class="ix loot none${mini ? ' mini' : ''}" title="Rohstoffe unbekannt — dafür fehlt die Gesamtübersicht (Bestände, Förderung, Speicherstufen)">◈<b>?</b></i>`;
+    return `<i class="ix loot none${mini ? ' mini' : ''}" title="Rohstoffe unbekannt — dafür fehlt die Gesamtübersicht (Bestände, Förderung, Speicherstufen)"><s>◈</s>${mini ? '' : '<em>Ressourcen</em>'}<b>?</b></i>`;
   }
   const when = loot.forImpact
     ? `zum Einschlag um ${hhmm(loot.at)}`
@@ -147,7 +147,7 @@ function lootChip(loot, atRisk, mini = false) {
     : '';
   const title = `${head}\n\n${detail}${upTxt}${soon}\n\nWasser zählt nicht mit.`;
   const cls = loot.safe ? 'safe' : atRisk ? 'risk' : 'warn';
-  return `<i class="ix loot ${cls}${mini ? ' mini' : ''}" title="${esc(title)}">◈<b>${loot.safe ? 'save' : compactRes(loot.loot)}</b></i>`;
+  return `<i class="ix loot ${cls}${mini ? ' mini' : ''}" title="${esc(title)}"><s>◈</s>${mini ? '' : '<em>Ressourcen</em>'}<b>${loot.safe ? 'save' : compactRes(loot.loot)}</b></i>`;
 }
 
 /**
@@ -346,10 +346,17 @@ export function gantt(events, opts = {}) {
       st.mine && st.yard.free ? 'yfree' : '',
     ].filter(Boolean).join(' ');
     const labChip = `${coordChip(coord, state.ownPlanets.has(coord) ? 'mine' : '')}`;
+    // Status-Punkt im Kartenkopf: rot pulsierend bei Gefahr, grün bei freier
+    // Kapazität, sonst neutral — auf einen Blick, bevor man die Instrumente liest.
+    const dotCls = risk ? 'risk' : (st.mine && (st.build.free || st.yard.free)) ? 'free' : 'idle';
+    const dot = `<i class="lab-dot ${dotCls}"></i>`;
 
     if (!evs.length) {
       return `<div class="tl-row quiet${rowIndex % 2 ? ' alt' : ''}${flags ? ' ' + flags : ''}" style="height:${LANE_H}px">
-        <span class="lab">${labChip}${indicators(coord, false)}</span>
+        <span class="lab"><span class="lab-card">
+          <span class="lab-top">${dot}${labChip}</span>
+          ${indicators(coord, false)}
+        </span></span>
         <span class="track"></span></div>`;
     }
 
@@ -399,7 +406,10 @@ export function gantt(events, opts = {}) {
     const attacks = evs.filter((e) => e.type === 'attack').length;
     const count = attacks ? `<i class="n crit">${attacks}⚔</i>` : `<i class="n">${evs.length}</i>`;
     return `<div class="tl-row${rowIndex % 2 ? ' alt' : ''}${hitCoords.has(coord) ? ' hit' : ''}${flags ? ' ' + flags : ''}" style="height:${height}px">
-      <span class="lab">${labChip}${count}${indicators(coord, risk)}</span>
+      <span class="lab"><span class="lab-card">
+        <span class="lab-top">${dot}${labChip}${count}</span>
+        ${indicators(coord, risk)}
+      </span></span>
       <span class="track">${fireBands}${marks}${more}${rest}</span></div>`;
   }).join('');
 
@@ -429,7 +439,7 @@ export function bandLegend(windows) {
     items.push('<span><i class="sw critical"></i> Online nötig — Flotte steht im Feuer</span>');
   }
   if (wins.some((w) => w.level === 'warn')) {
-    items.push('<span><i class="sw warn"></i> keine Flotte im Feuer, aber Beute möglich (oder Rohstofflage unbekannt)</span>');
+    items.push('<span><i class="sw warn"></i> keine Flotte im Feuer, aber Ressourcen möglich (oder Rohstofflage unbekannt)</span>');
   }
   if (wins.some((w) => w.level === 'safe')) {
     items.push('<span><i class="sw safe"></i> alles save — Online-Zeit optional</span>');

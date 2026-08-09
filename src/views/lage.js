@@ -80,7 +80,7 @@ export function renderLage() {
   return `${hero()}${signals(threats)}
     <div class="section">
       <h2>▤ Zeitachse</h2>
-      <div class="desc">Beantwortet je Einschlag die zwei Fragen, die zählen: <b>sind die Schiffe save</b> und <b>sind die Rohstoffe save</b>. Am Angriffsmarker steht beides als <b>⬟◈</b> — grün heißt, dort ist nichts zu holen. Die Rohstoffe sind auf den Einschlagszeitpunkt hochgerechnet (Förderung, Speicherdeckel und laufende Minenausbauten); nicht plünderbar sind 2 % der Speicherkapazität, Wasser zählt nicht mit. Die Leiste unter der Achse zeigt die Online-Fenster von oben — getönt ist nur das laufende bzw. nächste. Links je Planet <b>⬟ Flotte</b>, <b>◈ Beute</b>, <b>⌂ Bauplatz</b>, <b>⚒ Werft</b>. Planeten ohne Ereignisse stehen gesammelt unter dem Chart.</div>
+      <div class="desc">Beantwortet je Einschlag die zwei Fragen, die zählen: <b>sind die Schiffe save</b> und <b>sind die Rohstoffe save</b>. Am Angriffsmarker steht beides als <b>⬟◈</b> — grün heißt, dort ist nichts zu holen. Die Rohstoffe sind auf den Einschlagszeitpunkt hochgerechnet (Förderung, Speicherdeckel und laufende Minenausbauten); nicht plünderbar sind 2 % der Speicherkapazität, Wasser zählt nicht mit. Die Leiste unter der Achse zeigt die Online-Fenster von oben — getönt ist nur das laufende bzw. nächste. Links je Planet <b>⬟ Flotte</b>, <b>◈ Ressourcen</b>, <b>⌂ Bauplatz</b>, <b>⚒ Werft</b>. Planeten ohne Ereignisse stehen gesammelt unter dem Chart.</div>
       ${bandLegend(wins)}
       ${events.length ? gantt(events, { windows: wins }) : emptyState('Noch keine Ereignisse. Füge deine Übersichtsseite ein.')}
     </div>

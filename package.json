@@ -10,5 +10,8 @@
     "type": "git",
     "url": "git+https://github.com/spegioloni/gw-buddy.git"
   },
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "playwright": "^1.62.1"
+  }
 }
