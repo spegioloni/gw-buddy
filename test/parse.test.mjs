@@ -121,7 +121,8 @@ ok(!!handel && handel.ziel === '12:101:5', 'Handel-Flotte Ziel 12:101:5, got ' +
 
 // ---------- HTML-Übersicht ----------
 // Das Spiel zeigt zu jeder Hinflugflotte einen ausgegrauten, nur erwarteten
-// Rückflug. Dieser darf den Flugbestand nicht ein zweites Mal erhöhen.
+// Rückflug. Er erhöht den Flugbestand nicht ein zweites Mal, bestimmt aber,
+// wie lange die Flotte in der Luft bleibt.
 {
   const row = (id, muted = false) => `<div class="grid gap-1 fleet-table-tr${muted ? ' opacity-75' : ''}">
     <div data-time="${1786354000 + id}"></div>
@@ -136,6 +137,41 @@ ok(!!handel && handel.ziel === '12:101:5', 'Handel-Flotte Ziel 12:101:5, got ' +
   const longeagleVInAir = H.fleets.reduce((sum, fleet) => sum + (fleet.ships.longeagleV || 0), 0);
   ok(H.fleets.length === 13, 'HTML ignoriert 7 ausgegraute Rückflüge, got ' + H.fleets.length);
   ok(longeagleVInAir === 130, 'HTML Longeagle V in der Luft 130, got ' + longeagleVInAir);
+}
+
+// Die ausgegraute Rückflugzeile steht in der Rückflug-Sektion, gehört aber
+// zum vorausgehenden Hinflug. Mission und Richtung unterscheiden sich dort.
+{
+  const outboundAt = 1786354000;
+  const returnAt = 1786361200;
+  const row = (at, mission, from, to, muted = false) => `<div class="grid gap-1 fleet-table-tr${muted ? ' opacity-75' : ''}">
+    <div data-time="${at}"></div>
+    <div class="fleet-mission"><span title="<b>Schiffe</b><br />Longeagle V: 246<br /><br /><b>Rohstoffe</b><br />-">${mission}</span></div>
+    <a>${from}</a><a>${to}</a></div>`;
+  const html = `<html><script>var globalServerTime = 1786353626</script>
+    <div>Eigene Flotten Hinflug <small>(1)</small></div>
+    ${row(outboundAt, 'Angriff', '12:99:1', '12:1:2')}
+    <div>Eigene Flotten Rückflug <small>(1)</small></div>
+    ${row(returnAt, 'Rückflug', '12:99:1', '12:1:2', true)}
+    <div>Fremde Flotten</div></html>`;
+  const H = parseHtmlOverview(html);
+  ok(H.fleets.length === 1, 'HTML fasst Hin- und erwarteten Rückflug zu einer Flotte zusammen');
+  ok(H.fleets[0]?.returnAt === returnAt * 1000,
+    'Hinflug behält erwartete Rückkehrzeit für die Luft-Zeitachse, got ' + H.fleets[0]?.returnAt);
+}
+
+// Vollständiger echter HTML-Snapshot: 10 Hinflüge mit erwarteter Rückkehr,
+// 6 bereits echte Rückflüge und 2 Handelsflotten ohne Dubletten.
+{
+  const html = readFileSync(path.join(ROOT, '..', 'uebersicht.html'), 'utf8');
+  const H = parseHtmlOverview(html);
+  const hin = H.fleets.filter((fleet) => fleet.section === 'hin');
+  const rueck = H.fleets.filter((fleet) => fleet.section === 'rueck');
+  const trade = H.fleets.filter((fleet) => fleet.section === 'trade');
+  ok(hin.length === 10 && hin.every((fleet) => fleet.returnAt > fleet.at),
+    'echtes HTML ordnet allen 10 Hinflügen ihre spätere Rückkehr zu');
+  ok(rueck.length === 6, 'echtes HTML enthält 6 echte Rückflüge, got ' + rueck.length);
+  ok(trade.length === 2, 'echtes HTML enthält 2 Handelsflotten ohne Dubletten, got ' + trade.length);
 }
 
 // Fremde feindliche Flotten greifen von links nach rechts an.

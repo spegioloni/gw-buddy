@@ -270,5 +270,43 @@ ok(st445.loot.forImpact && st445.loot.at === impact445.at,
   state.fleets = saveFleets;
 }
 
+// --- Regression: erwartete Rückkehr hält die Kurve bis zum Rückflug hoch -
+{
+  const { renderFlotten } = await import('../src/views/flotten.js');
+  const ref = new Date(2026, 7, 10, 14, 17, 0).getTime();
+  const arrivalAt = ref - 10 * 60e3;
+  const returnAt = ref + 8 * 3600e3;
+  const realNow = Date.now;
+  Date.now = () => ref;
+  state.serverOffset = 0;
+  state.refAt = ref;
+  state.ownPlanets = new Set(['12:99:1']);
+  state.planets = new Map([['12:99:1', {
+    coord: '12:99:1', mine: true, ships: {}, defense: {}, points: 315,
+  }]]);
+  state.fleets = [{
+    section: 'hin', own: true, hostile: false, mission: 'Angriff',
+    start: '12:99:1', ziel: '12:1:2', at: arrivalAt, returnAt,
+    ships: { longeagleV: 246 }, cargo: {},
+  }];
+  try {
+    const html = renderFlotten();
+    ok(html.includes(`&quot;at&quot;:${returnAt}`),
+      'Luftkurve reduziert die Flotte erst bei der erwarteten Rückkehr');
+    ok(!html.includes(`&quot;at&quot;:${arrivalAt}`),
+      'Luftkurve reduziert die Flotte nicht bei der Zielankunft');
+    ok(A.stationedAt(state.planets.get('12:99:1'), '12:99:1', returnAt).total === 246,
+      'Flotte steht nach der erwarteten Rückkehr wieder am Heimatplaneten');
+    ok(A.arrivalsBeforeAt('12:99:1', returnAt)[0]?.at === returnAt,
+      'Gefahrenbewertung verwendet für den Rückkehrer die Rückkehrzeit');
+    const returnEvent = A.timelineEvents().find((event) =>
+      event.type === 'rueck' && event.coord === '12:99:1' && event.at === returnAt,
+    );
+    ok(!!returnEvent, 'Lage-Zeitleiste enthält die erwartete Rückkehr am Heimatplaneten');
+  } finally {
+    Date.now = realNow;
+  }
+}
+
 console.log(`\n${fail === 0 ? '✅' : '❌'}  ${pass} ok, ${fail} fehlgeschlagen`);
 process.exit(fail === 0 ? 0 : 1);

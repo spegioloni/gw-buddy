@@ -2,6 +2,7 @@
 import { state, serverNow, loadPersisted, ingest, ingestRequiredPair, hasRequiredData, clearAll, clearFarmReports, persist } from './state.js';
 import { nextImpact, resourceAt } from './analysis.js';
 import { clock, hhmmss, durLong, esc, coordChip } from './util/time.js';
+import { deLabel } from './domain.js';
 import { renderLage } from './views/lage.js';
 import { renderBauen } from './views/bauen.js';
 import { renderFlotten } from './views/flotten.js';
@@ -207,6 +208,29 @@ function init() {
       tip.hidden = false;
       return;
     }
+    const airLine = e.target.closest('.air-chart-line-hit');
+    if (airLine) {
+      const chart = airLine.closest('.air-chart');
+      const tip = chart.querySelector('.air-chart-tooltip');
+      const rect = chart.getBoundingClientRect();
+      const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const at = +airLine.dataset.airFrom + ratio * +airLine.dataset.airSpan;
+      const ships = {};
+      for (const flight of JSON.parse(airLine.dataset.airFlights)) {
+        if (flight.at <= at) continue;
+        for (const [key, amount] of Object.entries(flight.ships)) ships[key] = (ships[key] || 0) + amount;
+      }
+      const manifest = Object.entries(ships)
+        .filter(([, amount]) => amount > 0)
+        .sort(([, a], [, b]) => b - a)
+        .map(([key, amount]) => `${amount.toLocaleString('de-DE')} × ${deLabel.ship(key)}`)
+        .join('\n');
+      const time = new Date(at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      tip.textContent = manifest ? `${time}\n${manifest}` : `${time}\n–`;
+      tip.style.left = `${Math.max(5, Math.min(95, ratio * 100))}%`;
+      tip.hidden = false;
+      return;
+    }
     const hit = e.target.closest('.forecast-hit');
     if (!hit) return;
     const card = hit.closest('.forecast-card');
@@ -225,6 +249,11 @@ function init() {
     const airHit = e.target.closest('.air-chart-hit');
     if (airHit && !airHit.contains(e.relatedTarget)) {
       airHit.closest('.air-chart').querySelector('.air-chart-tooltip').hidden = true;
+      return;
+    }
+    const airLine = e.target.closest('.air-chart-line-hit');
+    if (airLine && !airLine.contains(e.relatedTarget)) {
+      airLine.closest('.air-chart').querySelector('.air-chart-tooltip').hidden = true;
       return;
     }
     const forecastCard = e.target.closest('.forecast-card');

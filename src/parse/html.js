@@ -10,6 +10,11 @@ const attr = (s, name) => {
   return m ? m[1] : '';
 };
 
+const fleetKey = (from, to, ships) => [
+  `${from}>${to}`,
+  Object.entries(ships).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `${key}:${value}`).join('|'),
+].join(';');
+
 function manifest(title, heading) {
   const block = new RegExp(`<b>${heading}</b><br\\s*/?>([\\s\\S]*?)(?=<br\\s*/?><br\\s*/?><b>|$)`, 'i').exec(title)?.[1] || '';
   const out = {};
@@ -26,15 +31,11 @@ function manifest(title, heading) {
 export function parseHtmlOverview(html) {
   const now = +( /var\s+globalServerTime\s*=\s*(\d+)/.exec(html)?.[1] || 0) * 1000;
   const fleets = [];
-  const sectionRe = /Eigene Flotten (Hinflug|Rückflug)[\s\S]*?(?=Eigene Flotten (?:Hinflug|Rückflug)|Fremde Flotten|Gebäudeaufträge|$)/gi;
+  const sectionRe = /Eigene Flotten (Hinflug|Rückflug)[\s\S]*?(?=Eigene Flotten (?:Hinflug|Rückflug)|Fremde(?:\s+\w+)*\s+Flotten|Gebäudeaufträge|$)/gi;
   for (const section of html.matchAll(sectionRe)) {
     const returning = /Rückflug/i.test(section[1]);
     for (const row of section[0].matchAll(/<div class="grid gap-1 fleet-table-tr[^>]*">([\s\S]*?)(?=<div class="grid gap-1 fleet-table-tr|$)/gi)) {
       const raw = row[1];
-      // Ausgegraute Rückflüge sind nur die vom Spiel vorausberechnete zweite
-      // Hälfte einer bereits im Hinflug gelisteten Flotte. Sie sind nicht
-      // zusätzlich unterwegs und würden den Bestand doppelt zählen.
-      if (/class="[^"]*\bopacity-75\b[^"]*"/i.test(row[0])) continue;
       const at = +attr(raw, 'data-time') * 1000;
       const missionMatch = /fleet-mission[\s\S]*?<span[^>]*title="([^"]*)"[^>]*>([^<]+)<\/span>/i.exec(raw);
       const coords = [...raw.matchAll(/<a\b[^>]*>\s*(\d{1,3}:\d{1,3}:\d{1,3})\s*<\/a>/gi)].map((m) => m[1]);
@@ -42,14 +43,29 @@ export function parseHtmlOverview(html) {
       const title = missionMatch[1];
       const mission = strip(missionMatch[2]);
       const from = coords[0], to = coords[1];
+      const ships = manifest(title, 'Schiffe');
+      const expectedReturn = /class="[^"]*\bopacity-75\b[^"]*"/i.test(row[0]);
+      if (expectedReturn) {
+        // Das Spiel listet zum Hinflug eine ausgegraute, vorausberechnete
+        // Rückkehr. Sie ist keine zweite Flotte, markiert aber das Ende des
+        // zusammenhängenden Flugs.
+        const key = fleetKey(from, to, ships);
+        const outbound = fleets.find((fleet) =>
+          fleet._key === key && fleet.returnAt == null && fleet.at < at,
+        );
+        if (outbound) outbound.returnAt = at;
+        continue;
+      }
       fleets.push({
         section: returning ? 'rueck' : 'hin', own: true, hostile: false, spy: false,
         mission, icon: returning ? '↩️' : '🚀', owner: returning ? 'Eigene · Rückflug' : 'Eigene · Hinflug',
         start: returning ? to : from, ziel: returning ? from : to, at,
-        ships: manifest(title, 'Schiffe'), cargo: manifest(title, 'Rohstoffe'),
+        ships, cargo: manifest(title, 'Rohstoffe'),
+        _key: fleetKey(from, to, ships),
       });
     }
   }
+  for (const fleet of fleets) delete fleet._key;
   // Feindliche Flotten verwenden kein Tooltip-<span>, sondern eine einfache
   // Missionszelle. Ihre Richtung ist im HTML trotzdem eindeutig: links
   // startet der Gegner, rechts liegt der eigene Zielplanet.

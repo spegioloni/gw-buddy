@@ -42,8 +42,11 @@ function hero() {
 
 function signals(threats) {
   const threatened = threats.filter((t) => t.mine && t.attacks.length).length;
-  const inTransit = state.fleets.filter((e) => e.own && e.at >= serverNow() - 1000).length;
-  const ownAttacks = state.fleets.filter((e) => e.own && e.mission === 'Angriff' && e.at >= serverNow() - 1000).length;
+  const now = serverNow() - 1000;
+  const inTransit = state.fleets.filter((e) => e.own && (e.returnAt ?? e.at) >= now).length;
+  const ownAttacks = state.fleets.filter((e) =>
+    e.own && e.mission === 'Angriff' && (e.returnAt ?? e.at) >= now,
+  ).length;
   const nextBuild = state.buildOrders.find((b) => b.at >= serverNow() - 1000);
   const fc = freeCapacity();
   return `<div class="signals">

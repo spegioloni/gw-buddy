@@ -56,15 +56,24 @@ export function stationedSummary(planet) {
 
 /**
  * Eigene Flottenankünfte auf `coord`, die nach dem Snapshot und bis `at`
- * landen. Ohne bekannten künftigen Abflug gilt: einmal gelandet, bleibt die
+ * landen. Ein vom Spiel vorausberechneter Rückflug landet wieder am Start-
+ * planeten. Ohne bekannten künftigen Abflug gilt: einmal gelandet, bleibt die
  * Flotte da — deshalb zählt jede Landung in diesem Zeitraum als Gegenwart.
  */
 export function arrivalsBeforeAt(coord, at) {
   const ref = state.refAt ?? serverNow();
-  return state.fleets
+  const landings = state.fleets
     .filter((e) => e.own && e.ziel === coord && e.at > ref && e.at <= at &&
       (e.section === 'rueck' || e.mission === 'Rückflug' || e.mission === 'Stationierung'))
-    .sort((a, b) => a.at - b.at);
+    .map((e) => ({ ...e, arrivalAt: e.at }));
+  const returns = state.fleets
+    .filter((e) => e.own && e.start === coord && e.returnAt > ref && e.returnAt <= at)
+    .map((e) => ({
+      ...e, at: e.returnAt, arrivalAt: e.returnAt,
+      section: 'rueck', mission: 'Rückflug',
+      start: e.ziel, ziel: e.start, expected: true,
+    }));
+  return [...landings, ...returns].sort((a, b) => a.arrivalAt - b.arrivalAt);
 }
 
 /**
@@ -538,6 +547,16 @@ export function timelineEvents() {
   const out = [];
   const mine = (c) => state.ownPlanets.size === 0 || state.ownPlanets.has(c);
   for (const e of state.fleets) {
+    if (e.returnAt && mine(e.start)) {
+      out.push({
+        at: e.returnAt, type: 'rueck', coord: e.start, from: e.ziel,
+        label: 'Rückflug', player: e.player,
+        meta: {
+          ...e, at: e.returnAt, section: 'rueck', mission: 'Rückflug',
+          start: e.ziel, ziel: e.start, expected: true,
+        },
+      });
+    }
     if (e.section === 'rueck' && e.mission === 'Stationierung') continue;
     if (!mine(e.ziel)) continue;
     let type = 'arrival';
