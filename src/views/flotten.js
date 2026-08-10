@@ -57,14 +57,16 @@ function airChart(list, now) {
   const points = flights.map((e) => {
     const atX = x(e.at);
     path += ` H ${atX}`;
-    remaining -= e.shipCount;
+    if (!e.hostile) remaining -= e.shipCount;
     path += ` V ${y(remaining)}`;
     const ships = Object.entries(e.ships || {})
       .filter(([, amount]) => amount > 0)
       .map(([key, amount]) => `${num(amount)} ${deLabel.ship(key)}`)
       .join(', ') || 'Schiffstyp unbekannt';
-    const detail = `${arrivalLabel(e.at)} · ${e.mission}\n${ships}\n${e.start} → ${e.ziel}`;
-    return `<circle class="air-chart-hit" cx="${atX}" cy="${y(remaining)}" r="4" data-air-detail="${esc(detail)}"></circle>`;
+    const detail = `${arrivalLabel(e.at)} · ${e.hostile ? 'Feindlicher ' : ''}${e.mission}\n${e.player ? `${e.player}\n` : ''}${ships}\n${e.start} → ${e.ziel}`;
+    const pointY = e.hostile ? top + 5 : y(remaining);
+    return `${e.hostile ? `<text class="air-chart-impact" x="${atX}" y="${pointY + 4}" text-anchor="middle">⚠</text>` : ''}
+      <circle class="air-chart-hit${e.hostile ? ' hostile' : ''}" cx="${atX}" cy="${pointY}" r="${e.hostile ? 8 : 4}" data-air-detail="${esc(detail)}"></circle>`;
   }).join('');
   const summary = total ? `${num(total)} Schiffe unterwegs` : 'Schiffsmengen unbekannt';
   const arrival = arrivalLabel(latest);
