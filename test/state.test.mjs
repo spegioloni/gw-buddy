@@ -152,6 +152,11 @@ ingest(read('gesamt.txt'));
 ingest(read('uebersicht.txt'));
 const ref = state.refAt;
 
+const storageRows = A.storageSafety();
+ok(storageRows.every((r) => (
+  r.status === (r.coverageHours < 12 ? 'danger' : r.coverageHours < 24 ? 'warning' : 'safe')
+)), 'Speicherstatus: unter 12 h rot, 12–24 h gelb, ab 24 h sicher');
+
 // Wasser wird bewusst ignoriert.
 ok(!A.PLUNDER_RESOURCES.includes('water'), 'Wasser zählt nicht als Beute');
 ok(A.PLUNDER_RESOURCES.length === 3, 'genau Eisen, Lutinum, Wasserstoff');
@@ -267,4 +272,3 @@ ok(st445.loot.forImpact && st445.loot.at === impact445.at,
 
 console.log(`\n${fail === 0 ? '✅' : '❌'}  ${pass} ok, ${fail} fehlgeschlagen`);
 process.exit(fail === 0 ? 0 : 1);
-

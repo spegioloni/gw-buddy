@@ -5,6 +5,8 @@ import path from 'node:path';
 import { detectType } from '../src/parse/detect.js';
 import { parseGesamt } from '../src/parse/gesamt.js';
 import { parseUebersicht } from '../src/parse/uebersicht.js';
+import { parseHtmlOverview } from '../src/parse/html.js';
+import { parseFarmReports, farmSummary } from '../src/parse/farmberichte.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const read = (f) => readFileSync(path.join(ROOT, 'fixtures', f), 'utf8');
@@ -116,6 +118,77 @@ const atkHome = attacks.find((e) => e.ziel === '12:101:5');
 ok(!!atkHome, 'Angriff auf 12:101:5 erkannt');
 const handel = U.fleets.find((e) => e.mission === 'Handel');
 ok(!!handel && handel.ziel === '12:101:5', 'Handel-Flotte Ziel 12:101:5, got ' + JSON.stringify(handel && handel.ziel));
+
+// ---------- HTML-Übersicht ----------
+// Das Spiel zeigt zu jeder Hinflugflotte einen ausgegrauten, nur erwarteten
+// Rückflug. Dieser darf den Flugbestand nicht ein zweites Mal erhöhen.
+{
+  const row = (id, muted = false) => `<div class="grid gap-1 fleet-table-tr${muted ? ' opacity-75' : ''}">
+    <div data-time="${1786354000 + id}"></div>
+    <div class="fleet-mission"><span title="<b>Schiffe</b><br />Longeagle V: 10<br /><br /><b>Rohstoffe</b><br />-">Angriff</span></div>
+    <a>12:1:1</a><a>12:1:2</a></div>`;
+  const html = `<html><script>var globalServerTime = 1786353626</script>
+    <div>Eigene Flotten Hinflug <small>(20)</small></div>
+    ${Array.from({ length: 13 }, (_, i) => row(i)).join('')}
+    ${Array.from({ length: 7 }, (_, i) => row(i + 20, true)).join('')}
+    <div>Fremde Flotten</div></html>`;
+  const H = parseHtmlOverview(html);
+  const longeagleVInAir = H.fleets.reduce((sum, fleet) => sum + (fleet.ships.longeagleV || 0), 0);
+  ok(H.fleets.length === 13, 'HTML ignoriert 7 ausgegraute Rückflüge, got ' + H.fleets.length);
+  ok(longeagleVInAir === 130, 'HTML Longeagle V in der Luft 130, got ' + longeagleVInAir);
+}
+
+// Fremde feindliche Flotten greifen von links nach rechts an.
+{
+  const html = `<html><script>var globalServerTime = 1786362768</script>
+    <div>Fremde feindliche Flotten <small>(1)</small></div>
+    <div class="grid gap-1 fleet-table-tr ">
+      <div data-time="1786366338"></div>
+      <div class="fleet-mission other-fleet attack text-center">Angriff</div>
+      <a title="GrEyHoUnD">12:97:4</a><a title="spegioloni">12:97:1</a>
+    </div>
+    <div data-controller="fleet-listing"></div></html>`;
+  const H = parseHtmlOverview(html);
+  const hostile = H.fleets[0];
+  ok(H.fleets.length === 1, 'HTML erkennt eine feindliche Flotte, got ' + H.fleets.length);
+  ok(hostile?.hostile && hostile.start === '12:97:4' && hostile.ziel === '12:97:1',
+    'feindlicher Angriff zeigt Gegner -> eigener Planet, got ' + JSON.stringify(hostile));
+  ok(hostile?.player === 'GrEyHoUnD' && hostile.mission === 'Angriff',
+    'feindlicher Name und Mission erkannt');
+}
+
+  // ---------- Farmberichte ----------
+  {
+    const raw = `Angriffsberichte
+  12:101:5  12:43:9
+  Bericht
+  spegioloni [KWLNZ]    10    0
+  _**Anakin**_    0    0
+  118.863 Eisen, 70.364 Lutinum, 16.406 Wasser, 22.734 Wasserstoff
+  heute 11:34:31
+  12:99:4  12:104:1
+  Bericht
+  spegioloni [KWLNZ]    10    0
+  Heebads    0    0
+  106.352 Eisen, 66.517 Lutinum, 16.272 Wasser, 29.386 Wasserstoff
+  gestern 10:26:04
+  12:99:4  12:43:9
+  Bericht
+  spegioloni [KWLNZ]    10    0
+  _**Anakin**_    0    0
+  80.000 Eisen, 1.000 Lutinum
+  gestern 10:00:00`;
+    const now = new Date(2026, 7, 10, 12, 0, 0);
+    const reports = parseFarmReports(raw, now);
+    const farms = farmSummary(reports, now);
+    ok(detectType(raw) === 'farmberichte', 'detect farmberichte');
+    ok(reports.length === 3, '3 Farmberichte, got ' + reports.length);
+    ok(reports[0].player === '_**Anakin**_', 'Farmname ohne Kampfwerte, got ' + reports[0].player);
+    ok(reports[0].total === 228367, 'Farmrohstoffe addiert, got ' + reports[0].total);
+    ok(farms.farms.length === 2, 'Farmen nach Ziel verdichtet, got ' + farms.farms.length);
+    ok(farms.attackedToday.length === 1 && farms.notAttackedToday.length === 1,
+      'heute angegriffen/offen korrekt getrennt');
+  }
 
 console.log(`\n${fail === 0 ? '✅' : '❌'}  ${pass} ok, ${fail} fehlgeschlagen`);
 process.exit(fail === 0 ? 0 : 1);

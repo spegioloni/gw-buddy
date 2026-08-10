@@ -25,15 +25,17 @@ Inhalt unverändert ausliefert.
 
 ## Bedienung
 
-1. Im Spiel eine der beiden Ansichten markieren und kopieren:
-   - **Übersichtsseite** (dein aktueller Planet) – liefert Serverzeit,
-     Flottenbewegungen, Bauaufträge, Rohstoffe des aktiven Planeten.
+1. Im Spiel beide Ansichten kopieren und zusammen einfügen:
+   - **HTML-Quelltext der Übersichtsseite** (dein aktueller Planet) – liefert
+     Serverzeit und aktuelle Flottenbewegungen. Die ausgegrauten,
+     vorausberechneten Rückflüge werden nicht als zweite Flotte gezählt.
    - **Gesamtübersicht** (Menü „Punkte → Gesamtübersicht") – liefert alle
-     eigenen Planeten mit Gebäuden, Schiffen, Verteidigung und Rohstoffen.
-2. Das Paste-Feld gehört zum **Lage**-Tab (dort einfügen — die Daten gelten
-   für alle Tabs). `Strg`+`Enter` oder „⚡ Auswerten" klicken. Der Typ wird
-   automatisch erkannt – du musst nichts umschalten.
-3. Beide Ansichten ergänzen sich: einmal eingefügt, bleiben sie erhalten
+     eigenen Planeten mit Gebäuden, stationierten Schiffen, Verteidigung und
+     Rohstoffen. Sie ist der Referenzbestand für die Gesamtzahl.
+2. Die beiden Paste-Felder gehören zum **Lage**-Tab (dort einfügen — die
+   Daten gelten für alle Tabs). `Strg`+`Enter` oder „⚡ Auswerten" klicken.
+   Bis beide Ansichten vorhanden sind, zeigt das Dashboard keine Auswertung.
+3. Beide Ansichten bleiben zusammen im Browser gespeichert
    (im Browser via `localStorage`), bis du sie neu einfügst oder „Leeren"
    klickst. Deine eigenen Planeten merkt sich die Seite aus der
    Gesamtübersicht.
@@ -46,7 +48,7 @@ Inhalt unverändert ausliefert.
 Alles bleibt ausschließlich lokal im Browser – nichts wird irgendwohin
 hochgeladen.
 
-## Die drei Tabs
+## Die Tabs
 
 - **Lage** – Cockpit-Ansicht und wichtigster Bildschirm:
   - Countdown bis zum nächsten Einschlag mit den dort stationierten Schiffen
@@ -96,6 +98,10 @@ steht `◈?` statt einer erfundenen Zahl.
 - **Flotten** – pro Planet gruppiert: was stationiert ist (Schiffe,
   Verteidigung) und was gerade dorthin bzw. von dort wegfliegt. Bedrohte
   Planeten stehen oben.
+- **Farmstatistik** – hat ein eigenes Paste-Feld für die Angriffsberichte.
+  Sie verdichtet mehrere Berichte je Zielkoordinate auf den jüngsten Stand,
+  sortiert Farmen nach den darin sichtbaren Rohstoffen und zeigt getrennt,
+  welche Farmen heute noch keinen Bericht haben.
 
 Auf schmalen Bildschirmen (≤ 820 px) wird aus der Desktop-Tabellen-Matrix eine
 Kartenansicht pro Planet, und die Tab-Leiste wird zum Burger-Menü.
@@ -113,14 +119,15 @@ src/
   data/
     production.js    Förderraten je Gebäudestufe (nur für Ausbau-Differenzen)
   parse/
-    detect.js        erkennt Übersichtsseite vs. Gesamtübersicht
+    detect.js        erkennt Übersichtsseite, Gesamtübersicht und Farmberichte
+    farmberichte.js   parst Angriffsberichte und verdichtet Farmen je Ziel
     uebersicht.js     parst Flotten, Bauaufträge, Rohstoffe des aktiven Planeten
     gesamt.js         parst die Planeten-Matrix (Gebäude/Schiffe/Verteidigung/Rohstoffe)
   util/
     format.js         Zahlen-/Dauer-Parsing, Zellen-Splitting
     time.js           Anzeige-Helfer (Uhrzeit, Countdown, Zahlenformat, Koordinaten-Chip)
   views/
-    lage.js, bauen.js, flotten.js, components.js
+    lage.js, bauen.js, flotten.js, farmen.js, components.js
     timeline.js       Gantt-Renderer für die Zeitachse im Lage-Tab, inkl. Zoom und Fenster-Leiste
   app.js             Bootstrap: Tabs, Tick-Loop, Alarme, Drawer, Toasts
 test/

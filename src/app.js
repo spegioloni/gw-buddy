@@ -1,24 +1,32 @@
 // Bootstrap: Tabs, Paste-Auswertung, Live-Tick, Alarme. Kein API-Zugriff.
-import { state, serverNow, loadPersisted, ingest, clearAll, persist } from './state.js';
-import { nextImpact } from './analysis.js';
+import { state, serverNow, loadPersisted, ingest, ingestRequiredPair, hasRequiredData, clearAll, clearFarmReports, persist } from './state.js';
+import { nextImpact, resourceAt } from './analysis.js';
 import { clock, hhmmss, durLong, esc, coordChip } from './util/time.js';
 import { renderLage } from './views/lage.js';
 import { renderBauen } from './views/bauen.js';
 import { renderFlotten } from './views/flotten.js';
+import { renderPrognose } from './views/prognose.js';
+import { renderFarmen } from './views/farmen.js';
 import { setZoom } from './views/timeline.js';
 import { DEMO_GESAMT, DEMO_UEBERSICHT } from './demo.js';
 
 const $ = (s) => document.querySelector(s);
-const VIEWS = { lage: renderLage, bauen: renderBauen, flotten: renderFlotten };
+const VIEWS = { lage: renderLage, bauen: renderBauen, flotten: renderFlotten, prognose: renderPrognose, farmen: renderFarmen };
 let tab = persist.getTab();
+let forecastPlanet = null;
+let demoLoaded = false;
 if (!VIEWS[tab]) tab = 'lage';
 const alarmed = new Set();
 
 function render() {
   const fn = VIEWS[tab] || renderLage;
-  $('#view').innerHTML = fn();
+  $('#view').innerHTML = tab === 'farmen'
+    ? fn()
+    : (hasRequiredData() || demoLoaded)
+    ? (tab === 'prognose' ? fn(forecastPlanet) : fn())
+    : '<div class="empty">Füge zuerst die HTML-Übersicht und die Gesamtübersicht ein.</div>';
   document.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
-  $('#importPanel').hidden = tab !== 'lage';
+  $('#importPanel').hidden = tab === 'farmen' || (tab !== 'lage' && (hasRequiredData() || demoLoaded));
   renderStatus();
   tick();
 }
@@ -31,6 +39,8 @@ function renderStatus() {
     parts.push(`<span class="pill">Übersichtsseite · ${state.fleets.length} Flotten${age}</span>`);
   }
   $('#status').innerHTML = parts.join(' ') || '<span class="pill">keine Daten geladen</span>';
+  const stale = state.snapshotAge != null && state.snapshotAge > 3600;
+  $('#staleBadge').hidden = !stale;
   const active = state.uebersicht?.activePlanet;
   $('#ctx').innerHTML = active ? `Aktiver Planet ${coordChip(active, 'mine')}` : '';
 }
@@ -42,19 +52,24 @@ function switchTab(t) {
 }
 
 function analyze() {
-  const text = $('#input').value.trim();
-  if (!text) { toast('Bitte zuerst eine Ansicht einfügen.', 'bad'); return; }
-  const res = ingest(text);
+  const html = $('#inputHtml').value.trim();
+  const gesamt = $('#inputGesamt').value.trim();
+  if (!html || !gesamt) { toast('Bitte beide Ansichten einfügen.', 'bad'); return; }
+  const res = ingestRequiredPair(html, gesamt);
   if (!res.ok) { toast('❌ ' + esc(res.message), 'bad'); return; }
-  $('#input').value = '';
-  const label = res.type === 'gesamt' ? 'Gesamtübersicht' : 'Übersichtsseite';
-  toast(`✅ ${label} übernommen — ${esc(res.message)}`, 'ok');
+  demoLoaded = false;
+  $('#inputHtml').value = '';
+  $('#inputGesamt').value = '';
+  toast(`✅ Ansichten übernommen — ${esc(res.message)}`, 'ok');
   alarmed.clear();
   render();
 }
 
 function loadDemo() {
+  // Die Demo enthält eine Text- statt HTML-Übersicht und bleibt deshalb
+  // bewusst der einzige Kompatibilitätspfad für Beispieldaten.
   ingest(DEMO_GESAMT); ingest(DEMO_UEBERSICHT);
+  demoLoaded = true;
   toast('Beispieldaten geladen.', 'ok');
   alarmed.clear(); render();
 }
@@ -138,20 +153,84 @@ function init() {
 
   $('#btnAnalyze').addEventListener('click', analyze);
   $('#btnDemo').addEventListener('click', loadDemo);
-  $('#btnClear').addEventListener('click', () => { clearAll(); toast('Daten geleert.'); render(); });
+  $('#btnClear').addEventListener('click', () => { clearAll(); demoLoaded = false; toast('Daten geleert.'); render(); });
   $('#btnFold').addEventListener('click', () => {
     const b = $('#importBody'); b.hidden = !b.hidden;
     $('#btnFold').textContent = b.hidden ? 'Einfügen ▸' : 'Einfügen ▾';
   });
   $('#alarmOn').addEventListener('change', (e) => persist.setAlarm(e.target.checked));
-  $('#input').addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); analyze(); }
-  });
+  for (const input of [$('#inputHtml'), $('#inputGesamt')]) {
+    input.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); analyze(); }
+    });
+  }
 
   // Zoom-Stufen der Gantt-Zeitachse (im Lage-Tab).
   $('#view').addEventListener('click', (e) => {
+    const farmMore = e.target.closest('[data-farm-list]');
+    if (farmMore) {
+      const list = farmMore.dataset.farmList;
+      state.farmShowAll[list] = !state.farmShowAll[list];
+      render(); return;
+    }
+    if (e.target.closest('#btnAnalyzeFarms')) {
+      const text = $('#inputFarmReports').value.trim();
+      if (!text) { toast('Bitte Angriffsberichte einfügen.', 'bad'); return; }
+      const result = ingest(text);
+      if (!result.ok || result.type !== 'farmberichte') { toast('Konnte keine Angriffsberichte erkennen.', 'bad'); return; }
+      toast(`✅ ${result.message}`, 'ok'); render(); return;
+    }
+    if (e.target.closest('#btnClearFarms')) {
+      clearFarmReports();
+      render(); return;
+    }
     const zoom = e.target.closest('[data-tlzoom]');
     if (zoom) { setZoom(zoom.dataset.tlzoom); render(); }
+  });
+  $('#view').addEventListener('change', (e) => {
+    if (e.target.id === 'forecastPlanet') { forecastPlanet = e.target.value; render(); }
+    if (e.target.matches('[data-forecast-target]')) {
+      const value = e.target.value === '' ? null : Number(e.target.value);
+      persist.setForecastTarget(e.target.dataset.coord, e.target.dataset.resource, value);
+      render();
+    }
+  });
+  $('#view').addEventListener('mousemove', (e) => {
+    const airHit = e.target.closest('.air-chart-hit');
+    if (airHit) {
+      const chart = airHit.closest('.air-chart');
+      const tip = chart.querySelector('.air-chart-tooltip');
+      const rect = chart.getBoundingClientRect();
+      const ratio = Math.max(5, Math.min(95, (e.clientX - rect.left) / rect.width * 100));
+      tip.textContent = airHit.dataset.airDetail;
+      tip.style.left = `${ratio}%`;
+      tip.hidden = false;
+      return;
+    }
+    const hit = e.target.closest('.forecast-hit');
+    if (!hit) return;
+    const card = hit.closest('.forecast-card');
+    const rect = hit.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const at = +hit.dataset.from + ratio * 24 * 3600e3;
+    const planet = state.planets.get(hit.dataset.coord);
+    if (!planet) return;
+    const stock = resourceAt(planet, hit.dataset.resource, at).stock;
+    const tip = card.querySelector('.forecast-tooltip');
+    tip.textContent = `${new Date(at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} · ${stock.toLocaleString('de-DE')} ${hit.dataset.resource === 'hydrogen' ? 'Wasserstoff' : hit.dataset.resource}`;
+    tip.style.left = `${Math.max(6, Math.min(94, ratio * 100))}%`;
+    tip.hidden = false;
+  });
+  $('#view').addEventListener('mouseout', (e) => {
+    const airHit = e.target.closest('.air-chart-hit');
+    if (airHit && !airHit.contains(e.relatedTarget)) {
+      airHit.closest('.air-chart').querySelector('.air-chart-tooltip').hidden = true;
+      return;
+    }
+    const forecastCard = e.target.closest('.forecast-card');
+    if (forecastCard && !forecastCard.contains(e.relatedTarget)) {
+      forecastCard.querySelector('.forecast-tooltip').hidden = true;
+    }
   });
 
   // Gantt-Zeitachse hängt an der Fensterbreite (Marker mit/ohne Uhrzeit) -> neu rendern.

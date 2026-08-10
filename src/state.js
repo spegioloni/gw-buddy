@@ -3,6 +3,8 @@
 import { detectType } from './parse/detect.js';
 import { parseGesamt } from './parse/gesamt.js';
 import { parseUebersicht } from './parse/uebersicht.js';
+import { parseHtmlOverview } from './parse/html.js';
+import { parseFarmReports, farmSummary } from './parse/farmberichte.js';
 
 const LS = {
   get(k, d) { try { const v = localStorage.getItem('gw_' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
@@ -12,6 +14,10 @@ const LS = {
 export const state = {
   gesamtText: '',
   uebersichtText: '',
+  htmlText: '',
+  farmText: '',
+  farmReports: [],
+  farmShowAll: { profitable: false, unvisited: false },
   gesamt: null,          // geparste Gesamtübersicht
   uebersicht: null,      // geparste Übersichtsseite
   ownPlanets: new Set(), // eigene Koordinaten (persistiert)
@@ -22,6 +28,8 @@ export const state = {
   refAt: null,           // absolute Referenzzeit des Snapshots (ms)
   gesamtAt: null,        // Wanduhr-Zeit des Gesamtübersicht-Pastes (ms)
   uebersichtAt: null,    // Wanduhr-Zeit des Übersichtsseiten-Pastes (ms)
+  htmlAt: null,
+  fleetSource: null,
   gesamtRefAt: null,     // Serverzeit-Bezug für Restzeiten aus der Gesamtübersicht
   buildSource: null,     // welche Quelle die Bauaufträge geliefert hat
   snapshotAge: null,     // Sekunden zwischen Snapshot und Paste-Moment
@@ -33,8 +41,12 @@ export const serverNow = () => Date.now() + state.serverOffset;
 export function loadPersisted() {
   state.gesamtText = LS.get('gesamtText', '');
   state.uebersichtText = LS.get('uebersichtText', '');
+  state.htmlText = LS.get('htmlText', '');
+  state.farmText = LS.get('farmText', '');
   state.gesamtAt = LS.get('gesamtAt', null);
   state.uebersichtAt = LS.get('uebersichtAt', null);
+  state.htmlAt = LS.get('htmlAt', null);
+  state.farmReports = parseFarmReports(state.farmText);
   const own = LS.get('ownPlanets', []);
   state.ownPlanets = new Set(Array.isArray(own) ? own : []);
   rebuild(Date.now());
@@ -72,6 +84,17 @@ export function ingest(text) {
     state.uebersichtAt = wall;
     LS.set('uebersichtText', text);
     LS.set('uebersichtAt', wall);
+  } else if (type === 'html') {
+    state.htmlText = text;
+    state.htmlAt = wall;
+    LS.set('htmlText', text);
+    LS.set('htmlAt', wall);
+  } else if (type === 'farmberichte') {
+    state.farmText = text;
+    state.farmReports = parseFarmReports(text);
+    state.farmShowAll = { profitable: false, unvisited: false };
+    LS.set('farmText', text);
+    return { type, ok: true, message: `${state.farmReports.length} Berichte · ${farmSummary(state.farmReports).farms.length} Farmen` };
   } else {
     state.lastError = 'Konnte den Text keinem Format zuordnen.';
     return { type, ok: false, message: state.lastError };
@@ -80,12 +103,52 @@ export function ingest(text) {
   return { type, ok: true, message: res.message };
 }
 
+/**
+ * Die HTML-Übersicht beschreibt die aktuellen Flüge, die Gesamtübersicht den
+ * stationierten Referenzbestand. Nur dieses Paar ergibt eine belastbare Lage.
+ */
+export function ingestRequiredPair(html, gesamt) {
+  if (detectType(html) !== 'html' || detectType(gesamt) !== 'gesamt') {
+    state.lastError = 'Bitte HTML-Übersicht und Gesamtübersicht in die passenden Felder einfügen.';
+    return { ok: false, message: state.lastError };
+  }
+  const wall = Date.now();
+  state.htmlText = html;
+  state.htmlAt = wall;
+  state.gesamtText = gesamt;
+  state.gesamtAt = wall;
+  // Die Text-Übersicht ist kein Teil des verpflichtenden Paars und könnte
+  // sonst ältere Flotten- oder Bauauftragsdaten wieder einmischen.
+  state.uebersichtText = '';
+  state.uebersichtAt = null;
+  LS.set('htmlText', html);
+  LS.set('htmlAt', wall);
+  LS.set('gesamtText', gesamt);
+  LS.set('gesamtAt', wall);
+  LS.set('uebersichtText', '');
+  LS.set('uebersichtAt', null);
+  const res = rebuild(wall);
+  return { ok: true, message: res.message };
+}
+
+export const hasRequiredData = () => !!(state.gesamt && state.htmlText && state.fleetSource === 'html');
+
 export function clearAll() {
-  state.gesamtText = ''; state.uebersichtText = '';
-  state.gesamtAt = null; state.uebersichtAt = null;
+  state.gesamtText = ''; state.uebersichtText = ''; state.htmlText = ''; state.farmText = '';
+  state.farmReports = [];
+  state.gesamtAt = null; state.uebersichtAt = null; state.htmlAt = null;
   LS.set('gesamtText', ''); LS.set('uebersichtText', '');
   LS.set('gesamtAt', null); LS.set('uebersichtAt', null);
+  LS.set('htmlText', ''); LS.set('htmlAt', null);
+  LS.set('farmText', '');
   rebuild(Date.now());
+}
+
+export function clearFarmReports() {
+  state.farmText = '';
+  state.farmReports = [];
+  state.farmShowAll = { profitable: false, unvisited: false };
+  LS.set('farmText', '');
 }
 
 /** Gesamten Zustand aus den beiden Rohtexten neu aufbauen. */
@@ -98,12 +161,20 @@ export function rebuild(wall) {
   }
 
   // 2) Übersichtsseite -> Snapshot-Zeit, Flotten, Bauaufträge, aktive Rohstoffe.
-  state.uebersicht = state.uebersichtText
-    ? safe(() => parseUebersicht(state.uebersichtText, state.ownPlanets))
-    : null;
+  const textOverview = state.uebersichtText
+    ? safe(() => parseUebersicht(state.uebersichtText, state.ownPlanets)) : null;
+  const htmlOverview = state.htmlText ? safe(() => parseHtmlOverview(state.htmlText)) : null;
+  // Flotten sind ein vollständiger Snapshot. Der neuere Stand gewinnt;
+  // bei Gleichstand HTML, weil nur er Schiffe und Fracht enthält.
+  const textAbs = snapshotToAbs(textOverview?.snapshot, wall);
+  const htmlAbs = htmlOverview?.snapshot?.abs ?? null;
+  const fleetOverview = htmlAbs != null && (textAbs == null || htmlAbs >= textAbs)
+    ? htmlOverview : textOverview;
+  state.fleetSource = fleetOverview === htmlOverview ? 'html' : fleetOverview ? 'text' : null;
+  state.uebersicht = textOverview ?? htmlOverview;
 
   // 3) Referenzzeit & Serverzeit-Offset.
-  const uAbs = snapshotToAbs(state.uebersicht?.snapshot, wall);
+  const uAbs = fleetOverview?.snapshot?.abs ?? snapshotToAbs(fleetOverview?.snapshot, wall);
   state.refAt = uAbs ?? wall;
   state.serverOffset = state.refAt - wall;
   state.snapshotAge = uAbs != null ? Math.max(0, (wall - uAbs) / 1000) : null;
@@ -118,7 +189,7 @@ export function rebuild(wall) {
 
   // 5) Flotten & Bauaufträge mit absoluten Zeiten.
   const ref = state.refAt;
-  state.fleets = (state.uebersicht?.fleets ?? []).map((e) => ({ ...e, at: ref + e.offsetSec * 1000 }));
+  state.fleets = (fleetOverview?.fleets ?? []).map((e) => ({ ...e, at: e.at ?? ref + e.offsetSec * 1000 }));
 
   const { orders, source } = mergeBuildOrders();
   state.buildOrders = orders;
@@ -250,4 +321,13 @@ function buildPlanets() {
 const safe = (fn) => { try { return fn(); } catch (e) { state.lastError = String(e?.message || e); return null; } };
 
 export const persist = { setAlarm: (v) => LS.set('alarm', v), getAlarm: () => LS.get('alarm', true),
-  setTab: (v) => LS.set('tab', v), getTab: () => LS.get('tab', 'lage') };
+  setTab: (v) => LS.set('tab', v), getTab: () => LS.get('tab', 'lage'),
+  getForecastTargets: () => LS.get('forecastTargets', {}),
+  setForecastTarget: (coord, key, value) => {
+    const targets = LS.get('forecastTargets', {});
+    const id = `${coord}|${key}`;
+    if (value == null) delete targets[id];
+    else targets[id] = value;
+    LS.set('forecastTargets', targets);
+  },
+};

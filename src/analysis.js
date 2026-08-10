@@ -62,7 +62,8 @@ export function stationedSummary(planet) {
 export function arrivalsBeforeAt(coord, at) {
   const ref = state.refAt ?? serverNow();
   return state.fleets
-    .filter((e) => e.own && e.ziel === coord && e.at > ref && e.at <= at)
+    .filter((e) => e.own && e.ziel === coord && e.at > ref && e.at <= at &&
+      (e.section === 'rueck' || e.mission === 'Rückflug' || e.mission === 'Stationierung'))
     .sort((a, b) => a.at - b.at);
 }
 
@@ -77,13 +78,19 @@ export function arrivalsBeforeAt(coord, at) {
 export function stationedAt(planet, coord, at) {
   const base = stationedSummary(planet);
   const arrivals = arrivalsBeforeAt(coord, at);
+  const counts = { ...planet.ships };
+  for (const e of arrivals) {
+    for (const [key, amount] of Object.entries(e.ships || {})) counts[key] = (counts[key] || 0) + amount;
+  }
+  const ships = Object.entries(counts).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
+  const total = ships.reduce((sum, [, n]) => sum + n, 0);
   return {
-    ...base,
+    ...base, ships, total,
     hasAny: base.hasAny || arrivals.length > 0,
     // Verteidigungsanlagen zählen hier bewusst NICHT: sie sind unbeweglich,
     // man kann sie nicht saven. "Im Feuer" steht nur, was man wegschicken
     // könnte — stationierte Schiffe oder eine Flotte, die vorher landet.
-    hasShips: base.total > 0 || arrivals.length > 0,
+    hasShips: total > 0 || arrivals.length > 0,
     arrivals,
   };
 }
@@ -135,6 +142,33 @@ function stockAt(segs, start, cap, at) {
     stock = Math.max(0, Math.min(cap, stock + s.rate * ((to - s.from) / 3600e3)));
     if (s.to >= at) break;
   }
+
+  return stock;
+}
+
+/** Eigene, auf diesem Planeten ankommende Fracht bis zu einem Zeitpunkt. */
+function cargoArrivals(planet, resKey, ref, at) {
+  return state.fleets
+    .filter((e) => e.own && e.ziel === planet.coord && e.at > ref && e.at <= at && (e.cargo?.[resKey] ?? 0) > 0)
+    .sort((a, b) => a.at - b.at);
+}
+
+/** Wie stockAt, aber mit diskreten Frachtsprüngen an den Ankunftszeiten. */
+function stockWithArrivals(segs, start, cap, arrivals, resKey, at) {
+  let stock = Math.max(0, Math.min(cap, start));
+  let from = segs[0].from;
+  const integrate = (to) => {
+    for (const s of segs) {
+      const a = Math.max(from, s.from), b = Math.min(to, s.to);
+      if (b > a) stock = Math.max(0, Math.min(cap, stock + s.rate * ((b - a) / 3600e3)));
+    }
+    from = to;
+  };
+  for (const e of arrivals) {
+    integrate(e.at);
+    stock = Math.min(cap, stock + e.cargo[resKey]);
+  }
+  integrate(at);
   return stock;
 }
 
@@ -166,12 +200,16 @@ export function resourceAt(planet, resKey, at) {
   const { level, cap, floor } = storageOf(planet, resKey);
   const start = planet.resources?.[resKey] ?? 0;
   const segs = rateSegments(planet, resKey, ref);
-  const stock = stockAt(segs, start, cap, Math.max(ref, at));
+  const target = Math.max(ref, at);
+  const arrivals = cargoArrivals(planet, resKey, ref, target);
+  const stock = arrivals.length
+    ? stockWithArrivals(segs, start, cap, arrivals, resKey, target)
+    : stockAt(segs, start, cap, target);
   const last = segs[segs.length - 1];
   return {
     key: resKey, level, cap, floor,
     rate: segs[0].rate, rateLater: last.rate, upgrade: last.upgrade ?? null,
-    stock: Math.round(stock),
+    stock: Math.round(stock), arrivals,
     loot: Math.max(0, Math.round(stock - floor)),
     full: stock >= cap,
     unsafeAt: crossesAt(segs, start, cap, floor),
@@ -209,7 +247,7 @@ export function plunderRisk(coord, at) {
  * `hours` Stunden Eigenproduktion? Geprüft für Eisen, Lutinum, Wasserstoff
  * (Wasser zählt nicht, siehe PLUNDER_RESOURCES). Wenn nicht: welche
  * Speicher-Stufe wäre nötig, damit der Sockel die Produktion abdeckt?
- * @returns {Array<{coord,resKey,level,cap,floor,rate,need,safe,recLevel}>}
+ * @returns {Array<{coord,resKey,level,cap,floor,rate,need,coverageHours,status,safe,recLevel}>}
  */
 export function storageSafety(hours = 24) {
   const rows = [];
@@ -220,13 +258,15 @@ export function storageSafety(hours = 24) {
       const { level, cap, floor } = storageOf(p, resKey);
       const rate = p.production?.[resKey] ?? 0;
       const need = rate * hours;
-      const safe = floor >= need;
+      const coverageHours = rate > 0 ? floor / rate : Infinity;
+      const status = coverageHours < 12 ? 'danger' : coverageHours < hours ? 'warning' : 'safe';
+      const safe = status === 'safe';
       let recLevel = level;
       if (!safe && rate > 0) {
         const neededCap = need / PROTECTED_SHARE;
         recLevel = Math.max(level + 1, Math.ceil(Math.sqrt(Math.max(0, neededCap - 300000) / 60000)));
       }
-      rows.push({ coord, resKey, level, cap, floor, rate, need, safe, recLevel });
+      rows.push({ coord, resKey, level, cap, floor, rate, need, coverageHours, status, safe, recLevel });
     }
   }
   return rows;
@@ -498,6 +538,7 @@ export function timelineEvents() {
   const out = [];
   const mine = (c) => state.ownPlanets.size === 0 || state.ownPlanets.has(c);
   for (const e of state.fleets) {
+    if (e.section === 'rueck' && e.mission === 'Stationierung') continue;
     if (!mine(e.ziel)) continue;
     let type = 'arrival';
     if (e.hostile) type = 'attack';

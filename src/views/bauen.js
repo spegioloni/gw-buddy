@@ -8,6 +8,7 @@ import { matrix, emptyState } from './components.js';
 
 const lvlOf = (v) => (v && typeof v === 'object' ? v.level : v);
 const num = (n) => Math.round(n).toLocaleString('de-DE');
+const coverage = (hours) => Number.isFinite(hours) ? `${hours.toFixed(1).replace('.', ',')} h` : '∞';
 
 function safety24h() {
   const rows = storageSafety(24);
@@ -25,21 +26,24 @@ function safety24h() {
     byPlanet.get(r.coord).push(r);
   }
   const body = [...byPlanet.entries()].map(([coord, rs]) => {
-    const groupUnsafe = rs.some((r) => !r.safe);
+    const groupStatus = rs.some((r) => r.status === 'danger')
+      ? 'danger'
+      : rs.some((r) => r.status === 'warning') ? 'warning' : 'safe';
     return rs.map((r, i) => `
-    <tr class="${r.safe ? '' : 'unsafe'}${i === 0 ? ' pgroup' : ''}">
-      ${i === 0 ? `<td rowspan="${rs.length}" class="${groupUnsafe ? 'bad' : ''}">${coordChip(coord, 'mine')}</td>` : ''}
+    <tr class="${r.status}${i === 0 ? ' pgroup' : ''}">
+      ${i === 0 ? `<td rowspan="${rs.length}" class="${groupStatus === 'danger' ? 'bad' : groupStatus === 'warning' ? 'warn' : ''}">${coordChip(coord, 'mine')}</td>` : ''}
       <td>${esc(deLabel.resource(r.resKey))}</td>
       <td class="num">${r.level}</td>
       <td class="num">${num(r.floor)}</td>
       <td class="num">${num(r.need)}</td>
-      <td class="num ${r.safe ? 'hi' : 'bad'}">${r.safe ? '✓ sicher' : '✗ zu wenig'}</td>
+      <td class="num">${coverage(r.coverageHours)}</td>
+      <td class="num ${r.status === 'safe' ? 'hi' : r.status === 'warning' ? 'warn' : 'bad'}">${r.safe ? '✓ sicher' : r.status === 'warning' ? '⚠ knapp' : '✗ zu wenig'}</td>
       <td class="num">${r.safe ? '–' : `Stufe ${r.recLevel}`}</td>
     </tr>`).join('');
   }).join('');
   const table = `<div class="mx-table"><table class="grouped">
     <thead><tr><th>Planet</th><th>Rohstoff</th><th>Speicher-Stufe</th><th>Sockel (2%)</th>
-    <th>Produktion/24h</th><th>Status</th><th>Empfehlung</th></tr></thead>
+    <th>Produktion/24h</th><th>Abdeckung</th><th>Status</th><th>Empfehlung</th></tr></thead>
     <tbody>${body}</tbody></table></div>`;
   return summary + table;
 }

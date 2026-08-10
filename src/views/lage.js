@@ -43,11 +43,12 @@ function hero() {
 function signals(threats) {
   const threatened = threats.filter((t) => t.mine && t.attacks.length).length;
   const inTransit = state.fleets.filter((e) => e.own && e.at >= serverNow() - 1000).length;
+  const ownAttacks = state.fleets.filter((e) => e.own && e.mission === 'Angriff' && e.at >= serverNow() - 1000).length;
   const nextBuild = state.buildOrders.find((b) => b.at >= serverNow() - 1000);
   const fc = freeCapacity();
   return `<div class="signals">
     <div class="sig t"><div class="k">Bedrohte Planeten</div><div class="v">${threatened}</div><div class="sub">${state.fleets.filter((e) => e.hostile).length} Angriffe gesamt</div></div>
-    <div class="sig o"><div class="k">Eigene Flotten unterwegs</div><div class="v">${inTransit}</div><div class="sub">Hin- &amp; Rückflüge</div></div>
+    <div class="sig o"><div class="k">Eigene Angriffe unterwegs</div><div class="v">${ownAttacks}</div><div class="sub">${inTransit} Flotten unterwegs</div></div>
     <div class="sig s"><div class="k">Nächster Bau fertig</div><div class="v cd" data-at="${nextBuild ? nextBuild.at : ''}">${nextBuild ? '' : '–'}</div><div class="sub">${nextBuild ? `${esc(nextBuild.name)} · ${coordChip(nextBuild.coord)}` : 'kein Auftrag'}</div></div>
     <div class="sig f"><div class="k">Freie Kapazität</div><div class="v">${fc.any.length}</div><div class="sub">${fc.noBuild.length}× Bauplatz · ${fc.idleYard.length}× Schiffsfabrik</div></div>
   </div>`;
