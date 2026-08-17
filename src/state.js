@@ -55,6 +55,7 @@ export const state = {
     error: null,
     notice: null,
     split: 'resource',   // Aufteilung der Balken: 'resource' | 'origin'
+    rank: 'total',       // Rangliste der Ziele: 'total' (Summe) | 'avg' (je Flug)
     days: 30,            // Zeitfenster des Diagramms
   },
 };

@@ -1,6 +1,6 @@
 import { state, serverNow } from '../state.js';
 import { farmSummary } from '../parse/farmberichte.js';
-import { stackByResource, stackByOrigin, lootStats, archiveFarms, farmFlights, RESOURCES } from '../farmstats.js';
+import { stackByResource, stackByOrigin, lootStats, archiveFarms, farmFlights, rankFarms, RESOURCES } from '../farmstats.js';
 import { stackedBars, barList } from './charts.js';
 import { coordChip, esc, num, short, clock } from '../util/time.js';
 import { emptyState } from './components.js';
@@ -36,7 +36,7 @@ function atlas() {
   return { ...farmSummary(state.farmReports), source: 'paste' };
 }
 
-function farmRows(farms, list, muted = false, source = 'paste', flights = null) {
+function farmRows(farms, list, muted = false, source = 'paste', flights = null, legacy = false) {
   if (!farms.length) {
     return emptyState(muted
       ? 'Jede bekannte Farm ist heute schon angeflogen oder unterwegs.'
@@ -52,10 +52,10 @@ function farmRows(farms, list, muted = false, source = 'paste', flights = null) 
     <div class="farm-rank mono">${flight ? (flight.kind === 'hin' ? '⚔️' : '↩️') : muted ? '○' : `#${index + 1}`}</div>
     <div class="farm-target">${coordChip(farm.target)}<b>${esc(farm.player)}</b>${sub}</div>
     <div class="farm-loot mono"><b>${num(source === 'archiv' ? farm.avg : farm.total)}</b><small>${source === 'archiv' ? `Ø je Angriff · ${farm.reports}×` : 'Rohstoffe gesamt'}</small></div>
-    <div class="farm-res mono">
+    ${legacy ? `<div class="farm-res mono"><span>Gesamt ${num(farm.sum)}</span></div>` : `<div class="farm-res mono">
       <span>E ${num(farm.resources.iron)}</span><span>L ${num(farm.resources.lutinum)}</span>
       <span>W ${num(farm.resources.water)}</span><span>H ${num(farm.resources.hydrogen)}</span>
-    </div>
+    </div>`}
   </article>`;
   }).join('')}</div>${farms.length > 10 ? `<button class="btn sm ghost farm-more" data-farm-list="${list}">${showAll ? 'Weniger anzeigen' : `Zeige mehr (${farms.length - 10})`}</button>` : ''}`;
 }
@@ -101,11 +101,13 @@ function lootCharts() {
   const series = loot.split === 'origin'
     ? stackByOrigin(loot.rows, today)
     : stackByResource(loot.rows, today);
-  const targets = loot.targets.slice(0, 12).map((t) => ({
+  const ranked = rankFarms(loot.targets, loot.rank);
+  const byAvg = loot.rank === 'avg';
+  const targets = ranked.map((t) => ({
     label: t.target,
     html: `${coordChip(t.target)}<b>${esc(t.target_player || 'Unbekannt')}</b>`,
-    value: t.total,
-    sub: `${t.reports} Angriff${t.reports === 1 ? '' : 'e'}`,
+    value: byAvg ? t.avg : t.total,
+    sub: `${t.reports} Angriff${t.reports === 1 ? '' : 'e'}${byAvg ? ` · ${short(t.total)} gesamt` : ''}`,
   }));
   return `<div class="signals loot-signals">
       <div class="sig f"><div class="k">Gesamt gefarmt</div><div class="v">${short(stats.total)}</div><div class="sub">${stats.reports} Berichte im Archiv</div></div>
@@ -122,8 +124,14 @@ function lootCharts() {
     <section class="section"><h2>◆ Ertrag je Rohstoff</h2>
       ${barList(RESOURCES.map(([key, label, color]) => ({ label, value: stats.byResource[key], color })))}
     </section>
-    <section class="section"><h2>◆ Ergiebigste Farmen</h2>
-      <div class="desc">Summe aller archivierten Angriffe je Ziel.</div>
+    <section class="section"><h2>◆ ${byAvg ? 'Beste Farmen je Flug' : 'Ergiebigste Farmen'}
+        <select class="chart-toggle" data-loot="rank" aria-label="Rangliste sortieren nach">
+          <option value="total"${byAvg ? '' : ' selected'}>Gesamtertrag</option>
+          <option value="avg"${byAvg ? ' selected' : ''}>Ertrag je Flug</option>
+        </select></h2>
+      <div class="desc">${byAvg
+        ? 'Durchschnittliche Beute je archiviertem Angriff — zeigt auch selten besuchte Ziele, die sich lohnen.'
+        : 'Summe aller archivierten Angriffe je Ziel — begünstigt, was oft angeflogen wurde.'}</div>
       ${barList(targets, { foot: `${loot.targets.length} Ziele im Archiv` })}
     </section>`;
 }
@@ -151,6 +159,9 @@ export function renderFarmen() {
   const enRoute = summary.notAttackedToday.filter((f) => flights.has(f.target));
   const open = summary.notAttackedToday.filter((f) => !flights.has(f.target));
   const flightsKnown = state.fleets.length > 0;
+  // Altes Schema im Projekt: die View liefert Schnitt und Aufschlüsselung
+  // des letzten Angriffs noch nicht.
+  const stale = !!summary.legacy;
   return `<section class="farm-intro">
       <div><div class="eyebrow">Angriffsberichte</div><h1>Farmatlas</h1>
       <p>${fromArchive
@@ -164,6 +175,10 @@ export function renderFarmen() {
       <div class="row"><button class="btn primary" id="btnAnalyzeFarms">Farmen auswerten</button><button class="btn sm ghost" id="btnClearFarms">Farmdaten leeren</button></div></div>
     </section>
     ${archiveSection()}
+    ${stale ? `<div class="empty bad">Das Archiv im Supabase-Projekt läuft noch auf einem älteren Schemastand:
+      die View <code>farm_loot_targets</code> liefert weder den Schnitt je Angriff noch die Aufschlüsselung des
+      letzten Angriffs. Der Schnitt wird hier aus Summe und Anzahl gerechnet, die Rohstoff-Aufteilung fehlt.
+      Einmal <code>supabase/schema.sql</code> im SQL-Editor ausführen, dann stimmt alles wieder.</div>` : ''}
     ${summary.farms.length ? `<div class="signals farm-signals">
       <div class="sig f"><div class="k">${fromArchive ? 'Farmen im Archiv' : 'Erfasste Farmen'}</div><div class="v">${summary.farms.length}</div><div class="sub">${num(summary.reports)} Berichte ${fromArchive ? 'archiviert' : 'eingelesen'}</div></div>
       <div class="sig o"><div class="k">Heute angeflogen</div><div class="v">${summary.attackedToday.length}</div><div class="sub">letzter Angriff von heute</div></div>
@@ -175,13 +190,13 @@ export function renderFarmen() {
     <div class="farm-columns">
       <section class="section"><h2>◆ Lohnendste Farmen</h2><div class="desc">${fromArchive
         ? 'Sortiert nach der durchschnittlichen Beute je Angriff über alle archivierten Anflüge.'
-        : 'Sortiert nach allen im jüngsten Bericht sichtbaren Rohstoffen.'}</div>${farmRows(summary.farms, 'profitable', false, summary.source, flights)}</section>
+        : 'Sortiert nach allen im jüngsten Bericht sichtbaren Rohstoffen.'}</div>${farmRows(summary.farms, 'profitable', false, summary.source, flights, stale)}</section>
       <section class="section"><h2>○ Heute noch nicht angeflogen</h2><div class="desc">${fromArchive
         ? 'Jede je gefarmte Koordinate ohne Angriff von heute und ohne laufende Flotte — nach Ø-Beute sortiert.'
-        : 'Diese Farmen haben im eingefügten Verlauf keinen Bericht von heute und keine Flotte unterwegs.'}${flightsKnown ? '' : ' Ohne eingefügte Übersichtsseite sind laufende Flotten unbekannt.'}</div>${farmRows(open, 'unvisited', true, summary.source)}
+        : 'Diese Farmen haben im eingefügten Verlauf keinen Bericht von heute und keine Flotte unterwegs.'}${flightsKnown ? '' : ' Ohne eingefügte Übersichtsseite sind laufende Flotten unbekannt.'}</div>${farmRows(open, 'unvisited', true, summary.source, null, stale)}
         ${enRoute.length ? `<h3 class="farm-subhead">⚔️ Bereits unterwegs (${enRoute.length})</h3>
           <div class="desc">Diese Ziele stehen schon auf dem Flugplan — Rückflüge bedeuten, dass der Bericht nur noch fehlt.</div>
-          ${farmRows(enRoute, 'enroute', true, summary.source, flights)}` : ''}</section>
+          ${farmRows(enRoute, 'enroute', true, summary.source, flights, stale)}` : ''}</section>
     </div>`
       : emptyState('Füge die Angriffsberichte ein, um die Farmen zu vergleichen.')}`;
 }

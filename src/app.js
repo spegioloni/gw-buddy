@@ -263,7 +263,7 @@ function lootChange(e) {
     state.loot.days = Number(e.target.value);
     lootAction('load', lootLoad);
   } else {
-    state.loot.split = e.target.value;
+    state.loot[field] = e.target.value;
     render();
   }
   return true;

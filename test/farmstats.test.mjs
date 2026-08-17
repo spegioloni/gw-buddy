@@ -1,5 +1,5 @@
 // Beute-Archiv: Aggregation, Diagrammbau und die Client-Abbildung der Berichte.
-import { dayAxis, stackByResource, stackByOrigin, lootStats, archiveFarms, farmFlights, RESOURCES } from '../src/farmstats.js';
+import { dayAxis, stackByResource, stackByOrigin, lootStats, archiveFarms, farmFlights, rankFarms, RESOURCES } from '../src/farmstats.js';
 import { stackedBars, barList } from '../src/views/charts.js';
 import { farmReportPayload } from '../src/sync/supabase.js';
 import { parseFarmReports } from '../src/parse/farmberichte.js';
@@ -173,6 +173,51 @@ ohne Datum`;
   ok(farmFlights([], own).size === 0, 'ohne Flotten leer');
   ok(farmFlights([{ own: true, section: 'hin', mission: 'Angriff', ziel: '12:43:9', at: null }], own)
     .get('12:43:9').at === null, 'Flotte ohne Ankunftszeit kippt nicht');
+}
+
+// ---------- Rangliste umstellbar ----------
+{
+  const targets = [
+    { target: '12:43:9', total: 1800000, reports: 9, avg_total: 200000 },
+    { target: '12:104:1', total: 900000, reports: 4, avg_total: 225000 },
+    { target: '12:44:5', total: '324000', reports: '4' },      // bigint als String, ohne avg_total
+    { target: '12:7:2', total: 500000, reports: 1, avg_total: 500000 },
+  ];
+  const byTotal = rankFarms(targets, 'total');
+  ok(byTotal.map((t) => t.target).join() === '12:43:9,12:104:1,12:7:2,12:44:5', 'Summe: ' + byTotal.map((t) => t.target).join());
+  const byAvg = rankFarms(targets, 'avg');
+  ok(byAvg.map((t) => t.target).join() === '12:7:2,12:104:1,12:43:9,12:44:5', 'Schnitt: ' + byAvg.map((t) => t.target).join());
+  ok(byAvg[3].avg === 81000, 'fehlendes avg_total wird gerechnet, got ' + byAvg[3].avg);
+  ok(typeof byTotal[3].total === 'number' && byTotal[3].total === 324000, 'bigint-String wird Zahl');
+  ok(rankFarms(targets, 'total', 2).length === 2, 'Limit greift');
+  ok(rankFarms([]).length === 0 && rankFarms(null).length === 0, 'leere Eingabe kippt nicht');
+  ok(rankFarms([{ target: 'a', total: 10, reports: 0 }], 'avg')[0].avg === 0, 'ohne Angriffe kein Schnitt');
+  const stable = rankFarms([
+    { target: 'a', total: 100, reports: 1, avg_total: 100 },
+    { target: 'b', total: 300, reports: 3, avg_total: 100 },
+  ], 'avg');
+  ok(stable[0].target === 'b', 'bei Gleichstand entscheidet die Summe');
+  ok(targets[0].total === 1800000, 'Eingabe bleibt unangetastet');
+}
+
+// ---------- Altes Schema: View ohne avg_total/last_* ----------
+{
+  const legacy = archiveFarms([
+    { target: '12:43:9', target_player: 'Anakin', total: '1800000', reports: '9', last_at: '2026-08-15T10:00:00Z' },
+    { target: '12:104:1', target_player: 'Heebads', total: 900000, reports: 4, last_at: '2026-08-16T10:00:00Z' },
+  ], new Date('2026-08-17T12:00:00'));
+  ok(legacy.legacy === true, 'alter Schemastand wird erkannt');
+  ok(legacy.farms[0].avg === 225000, 'Schnitt aus Summe/Anzahl, got ' + legacy.farms[0].avg);
+  ok(legacy.farms[0].total === 225000, 'ohne last_total springt der Schnitt ein');
+  ok(legacy.farms.map((f) => f.target).join() === '12:104:1,12:43:9', 'nach Schnitt sortiert');
+  ok(legacy.reports === 13, 'Berichte summiert, got ' + legacy.reports);
+
+  const modern = archiveFarms([
+    { target: '12:43:9', total: 1800000, reports: 9, avg_total: 200000, last_total: 150000, last_at: '2026-08-16T10:00:00Z' },
+  ], new Date('2026-08-17T12:00:00'));
+  ok(modern.legacy === false, 'neues Schema gilt nicht als veraltet');
+  ok(modern.farms[0].total === 150000, 'last_total gewinnt, wenn vorhanden');
+  ok(archiveFarms([]).legacy === false, 'leeres Archiv ist nicht veraltet');
 }
 
 console.log(`\n${fail === 0 ? '✅' : '❌'}  ${pass} ok, ${fail} fehlgeschlagen`);

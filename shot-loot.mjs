@@ -94,6 +94,20 @@ await page.waitForTimeout(150);
 console.log('Legende nach Umschalten:', (await page.locator('.chart-legend').first().innerText()).replace(/\n/g, ' '));
 await page.screenshot({ path: 'shot-loot-origin.png', fullPage: true });
 
+// Rangliste von Gesamtertrag auf Ertrag je Flug umstellen.
+const rankOrder = async () => (await page.locator('.section:has([data-loot="rank"]) .barlist-value').allInnerTexts()).join(' | ').replace(/\n/g, ' ');
+const totalOrder = await rankOrder();
+const scheme = await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme);
+console.log('color-scheme:', scheme);
+if (scheme !== 'dark') errors.push('color-scheme ist nicht dark — native Dropdowns bleiben weiß');
+await page.selectOption('[data-loot="rank"]', 'avg');
+const avgHead = await page.locator('.section h2', { has: page.locator('[data-loot="rank"]') }).innerText();
+const avgOrder = await rankOrder();
+console.log('Rangliste Gesamt:', totalOrder, '\nRangliste je Flug:', avgOrder, '\nÜberschrift:', avgHead.replace(/\n/g, ' '));
+if (totalOrder === avgOrder) errors.push('Rangliste ändert sich beim Umstellen nicht');
+if (!avgHead.includes('je Flug')) errors.push('Überschrift bleibt bei „Ergiebigste"');
+await page.screenshot({ path: 'shot-loot-rank.png', fullPage: true });
+
 // Archivieren ohne Login-Session -> Berechtigungsfehler, kein stiller Absturz.
 await page.click('#btnLootPush');
 await page.waitForFunction(() => window.__gw.state.loot.busy === null, null, { timeout: 60000 });

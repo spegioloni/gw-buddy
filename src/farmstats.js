@@ -76,6 +76,30 @@ export function stackByOrigin(rows, today = null, max = 8) {
 }
 
 /**
+ * Rangliste der Ziele, wahlweise nach Gesamtsumme oder nach Ertrag je Flug.
+ *
+ * Die beiden Sichten beantworten verschiedene Fragen: Die Gesamtsumme zeigt,
+ * wo über die Zeit am meisten hängen geblieben ist — das begünstigt Ziele,
+ * die man einfach oft angeflogen hat. Der Schnitt je Flug zeigt, welcher
+ * einzelne Anflug sich am meisten lohnt, und deckt damit auch die Farm auf,
+ * die man bisher nur zweimal besucht hat.
+ *
+ * `avg_total` kommt aus der View; fehlt die Spalte (altes Schema), wird der
+ * Schnitt hier aus Summe und Anzahl gebildet. Bei Gleichstand entscheidet
+ * die Gesamtsumme, damit die Reihenfolge stabil bleibt.
+ */
+export function rankFarms(targets, mode = 'total', limit = 12) {
+  const scored = (targets || []).map((t) => {
+    const total = Number(t.total || 0);
+    const reports = Number(t.reports || 0);
+    const avg = t.avg_total != null ? Number(t.avg_total) : (reports ? Math.round(total / reports) : 0);
+    return { ...t, total, reports, avg };
+  });
+  const key = mode === 'avg' ? 'avg' : 'total';
+  return scored.sort((a, b) => b[key] - a[key] || b.total - a.total).slice(0, limit);
+}
+
+/**
  * Farmatlas aus dem Archiv statt aus dem letzten Paste. Liefert bewusst
  * dieselbe Form wie farmSummary(), damit die Ansicht nicht zweigleisig
  * fahren muss — nur eben über *alle* je gefarmten Ziele, auch die, die im
@@ -84,23 +108,31 @@ export function stackByOrigin(rows, today = null, max = 8) {
 export function archiveFarms(targets, reference = new Date()) {
   const todayStart = new Date(reference.getFullYear(), reference.getMonth(), reference.getDate()).getTime();
   const n = (v) => Number(v || 0);
+  // Ältere Schemastände liefern nur target/total/reports/last_at. Dann fehlen
+  // Schnitt und Aufschlüsselung des letzten Angriffs — statt überall Nullen
+  // zu zeigen, wird gerechnet, was sich rechnen lässt, und der Rest gemeldet.
+  const legacy = targets.length > 0 && targets.every((t) => t.avg_total == null);
   const farms = targets.map((t) => {
     const at = t.last_at ? Date.parse(t.last_at) : null;
+    const sum = n(t.total);
+    const reports = n(t.reports);
+    const avg = t.avg_total != null ? n(t.avg_total) : (reports ? Math.round(sum / reports) : 0);
     return {
       target: t.target,
       player: t.target_player || 'Unbekannt',
       at,
       // "total" ist die Beute des jüngsten Angriffs — dieselbe Bedeutung
       // wie beim Paste-Atlas, damit die Zeilen vergleichbar bleiben.
-      total: n(t.last_total),
+      // Fehlt die Spalte, ist der Schnitt die ehrlichste Schätzung.
+      total: t.last_total != null ? n(t.last_total) : avg,
       resources: {
         iron: n(t.last_iron), lutinum: n(t.last_lutinum),
         water: n(t.last_water), hydrogen: n(t.last_hydrogen),
       },
-      avg: n(t.avg_total),
+      avg,
       best: n(t.best_total),
-      sum: n(t.total),
-      reports: n(t.reports),
+      sum,
+      reports,
       origin: t.last_origin || null,
       // Über die Sommerzeit-Umstellung ist ein Tag mal 23 oder 25 Stunden
       // lang — deshalb runden statt abschneiden.
@@ -111,6 +143,7 @@ export function archiveFarms(targets, reference = new Date()) {
   const ranked = [...farms].sort((a, b) => b.avg - a.avg || b.total - a.total);
   return {
     source: 'archiv',
+    legacy,
     reports: farms.reduce((sum, f) => sum + f.reports, 0),
     farms: ranked,
     attackedToday: ranked.filter((f) => f.at != null && f.at >= todayStart),
