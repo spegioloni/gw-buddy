@@ -11,7 +11,7 @@ globalThis.localStorage = {
   removeItem: (k) => store.delete(k),
 };
 
-const { state, ingest, serverNow, clearAll } = await import('../src/state.js');
+const { state, ingest, ingestRequiredPair, hasRequiredData, serverNow, clearAll } = await import('../src/state.js');
 const A = await import('../src/analysis.js');
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -306,6 +306,38 @@ ok(st445.loot.forImpact && st445.loot.at === impact445.at,
   } finally {
     Date.now = realNow;
   }
+}
+
+// --- Pflicht-Paar: Übersicht als HTML ODER als reiner Text ----------------
+{
+  const gesamt = read('gesamt.txt');
+  const textOverview = read('uebersicht.txt');
+  const htmlOverview = readFileSync(path.join(ROOT, '..', 'uebersicht.html'), 'utf8');
+
+  clearAll();
+  const rText = ingestRequiredPair(textOverview, gesamt);
+  ok(rText.ok, 'Text-Übersicht wird als Pflicht-Paar akzeptiert: ' + rText.message);
+  ok(hasRequiredData(), 'hasRequiredData mit Text-Übersicht');
+  ok(state.fleetSource === 'text', 'fleetSource text, got ' + state.fleetSource);
+  ok(state.htmlText === '', 'HTML-Slot bleibt beim Text-Import leer');
+
+  clearAll();
+  const rHtml = ingestRequiredPair(htmlOverview, gesamt);
+  ok(rHtml.ok, 'HTML-Übersicht wird als Pflicht-Paar akzeptiert: ' + rHtml.message);
+  ok(hasRequiredData(), 'hasRequiredData mit HTML-Übersicht');
+  ok(state.fleetSource === 'html', 'fleetSource html, got ' + state.fleetSource);
+  ok(state.uebersichtText === '', 'Text-Slot bleibt beim HTML-Import leer');
+
+  // Der zweite Import ersetzt den ersten vollständig — sonst mischt das
+  // andere Format ältere Flotten wieder ein.
+  ingestRequiredPair(textOverview, gesamt);
+  ok(state.htmlText === '' && state.fleetSource === 'text',
+    'Text-Import verdrängt eine zuvor eingefügte HTML-Übersicht');
+
+  clearAll();
+  const rSwapped = ingestRequiredPair(gesamt, textOverview);
+  ok(!rSwapped.ok, 'vertauschte Felder werden abgelehnt');
+  ok(!hasRequiredData(), 'kein hasRequiredData nach abgelehntem Paar');
 }
 
 console.log(`\n${fail === 0 ? '✅' : '❌'}  ${pass} ok, ${fail} fehlgeschlagen`);

@@ -104,34 +104,43 @@ export function ingest(text) {
 }
 
 /**
- * Die HTML-Übersicht beschreibt die aktuellen Flüge, die Gesamtübersicht den
+ * Die Übersichtsseite beschreibt die aktuellen Flüge, die Gesamtübersicht den
  * stationierten Referenzbestand. Nur dieses Paar ergibt eine belastbare Lage.
+ *
+ * Die Übersicht wird in beiden Formaten akzeptiert: als HTML-Quelltext oder
+ * als reiner Seitentext. HTML ist die reichere Quelle (Schiffe, Fracht und
+ * exakte Unix-Ankunftszeiten stecken nur in den Tooltips), Text genügt aber
+ * für Missionen, Routen und Ankunftszeiten.
  */
-export function ingestRequiredPair(html, gesamt) {
-  if (detectType(html) !== 'html' || detectType(gesamt) !== 'gesamt') {
-    state.lastError = 'Bitte HTML-Übersicht und Gesamtübersicht in die passenden Felder einfügen.';
+export function ingestRequiredPair(overview, gesamt) {
+  const overviewType = detectType(overview);
+  if ((overviewType !== 'html' && overviewType !== 'uebersicht') || detectType(gesamt) !== 'gesamt') {
+    state.lastError = 'Bitte Übersichtsseite (HTML oder Text) und Gesamtübersicht in die passenden Felder einfügen.';
     return { ok: false, message: state.lastError };
   }
   const wall = Date.now();
-  state.htmlText = html;
-  state.htmlAt = wall;
   state.gesamtText = gesamt;
   state.gesamtAt = wall;
-  // Die Text-Übersicht ist kein Teil des verpflichtenden Paars und könnte
-  // sonst ältere Flotten- oder Bauauftragsdaten wieder einmischen.
-  state.uebersichtText = '';
-  state.uebersichtAt = null;
-  LS.set('htmlText', html);
-  LS.set('htmlAt', wall);
   LS.set('gesamtText', gesamt);
   LS.set('gesamtAt', wall);
-  LS.set('uebersichtText', '');
-  LS.set('uebersichtAt', null);
+  // Beide Übersichts-Formate beschreiben denselben Stand. Nur das gerade
+  // eingefügte darf gelten — sonst mischt das andere ältere Flotten- oder
+  // Bauauftragsdaten wieder ein.
+  const html = overviewType === 'html' ? overview : '';
+  const text = overviewType === 'html' ? '' : overview;
+  state.htmlText = html;
+  state.htmlAt = html ? wall : null;
+  state.uebersichtText = text;
+  state.uebersichtAt = text ? wall : null;
+  LS.set('htmlText', html);
+  LS.set('htmlAt', state.htmlAt);
+  LS.set('uebersichtText', text);
+  LS.set('uebersichtAt', state.uebersichtAt);
   const res = rebuild(wall);
   return { ok: true, message: res.message };
 }
 
-export const hasRequiredData = () => !!(state.gesamt && state.htmlText && state.fleetSource === 'html');
+export const hasRequiredData = () => !!(state.gesamt && state.fleetSource);
 
 export function clearAll() {
   state.gesamtText = ''; state.uebersichtText = ''; state.htmlText = ''; state.farmText = '';

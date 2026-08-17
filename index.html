@@ -35,12 +35,12 @@
   <section class="panel" id="importPanel">
     <div class="head">
       <h3>Ansicht einfügen</h3>
-      <span class="hint">Beide Ansichten werden zusammen ausgewertet: HTML für Flüge, Gesamtübersicht für Bestände.</span>
+      <span class="hint">Beide Ansichten werden zusammen ausgewertet: Übersichtsseite (HTML oder Text) für Flüge, Gesamtübersicht für Bestände.</span>
       <div class="spacer" style="flex:1"></div>
       <button class="btn sm ghost" id="btnFold">Einfügen ▾</button>
     </div>
     <div class="body" id="importBody">
-      <textarea id="inputHtml" spellcheck="false" placeholder="1. HTML-Quelltext der GigraWars-Übersicht einfügen (enthält aktuelle Flüge)."></textarea>
+      <textarea id="inputOverview" spellcheck="false" placeholder="1. Übersichtsseite einfügen — HTML-Quelltext ODER reiner Seitentext (enthält aktuelle Flüge). HTML liefert zusätzlich Schiffe und Fracht je Flotte."></textarea>
       <textarea id="inputGesamt" spellcheck="false" placeholder="2. Gesamtübersicht einfügen (Punkte → Gesamtübersicht; Referenzbestand)."></textarea>
       <div class="row">
         <button class="btn primary" id="btnAnalyze">⚡ Auswerten</button>

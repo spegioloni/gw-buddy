@@ -26,9 +26,13 @@ Inhalt unverändert ausliefert.
 ## Bedienung
 
 1. Im Spiel beide Ansichten kopieren und zusammen einfügen:
-   - **HTML-Quelltext der Übersichtsseite** (dein aktueller Planet) – liefert
-     Serverzeit und aktuelle Flottenbewegungen. Die ausgegrauten,
-     vorausberechneten Rückflüge werden nicht als zweite Flotte gezählt.
+   - **Übersichtsseite** (dein aktueller Planet) – liefert Serverzeit und
+     aktuelle Flottenbewegungen. Zwei Formate werden akzeptiert: der
+     **HTML-Quelltext** (`Strg`+`U`) oder der **reine Seitentext** (Seite
+     markieren und kopieren). Der HTML-Quelltext ist die reichere Quelle — nur
+     dort stecken Schiffe und Fracht je Flotte in den Tooltips, und die
+     ausgegrauten, vorausberechneten Rückflüge werden nicht als zweite Flotte
+     gezählt. Der Seitentext genügt für Missionen, Routen und Ankunftszeiten.
    - **Gesamtübersicht** (Menü „Punkte → Gesamtübersicht") – liefert alle
      eigenen Planeten mit Gebäuden, stationierten Schiffen, Verteidigung und
      Rohstoffen. Sie ist der Referenzbestand für die Gesamtzahl.

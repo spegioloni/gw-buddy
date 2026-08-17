@@ -15,7 +15,6 @@ const $ = (s) => document.querySelector(s);
 const VIEWS = { lage: renderLage, bauen: renderBauen, flotten: renderFlotten, prognose: renderPrognose, farmen: renderFarmen };
 let tab = persist.getTab();
 let forecastPlanet = null;
-let demoLoaded = false;
 if (!VIEWS[tab]) tab = 'lage';
 const alarmed = new Set();
 
@@ -23,11 +22,11 @@ function render() {
   const fn = VIEWS[tab] || renderLage;
   $('#view').innerHTML = tab === 'farmen'
     ? fn()
-    : (hasRequiredData() || demoLoaded)
+    : hasRequiredData()
     ? (tab === 'prognose' ? fn(forecastPlanet) : fn())
-    : '<div class="empty">Füge zuerst die HTML-Übersicht und die Gesamtübersicht ein.</div>';
+    : '<div class="empty">Füge zuerst die Übersichtsseite (HTML oder Text) und die Gesamtübersicht ein.</div>';
   document.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
-  $('#importPanel').hidden = tab === 'farmen' || (tab !== 'lage' && (hasRequiredData() || demoLoaded));
+  $('#importPanel').hidden = tab === 'farmen' || (tab !== 'lage' && hasRequiredData());
   renderStatus();
   tick();
 }
@@ -53,13 +52,12 @@ function switchTab(t) {
 }
 
 function analyze() {
-  const html = $('#inputHtml').value.trim();
+  const overview = $('#inputOverview').value.trim();
   const gesamt = $('#inputGesamt').value.trim();
-  if (!html || !gesamt) { toast('Bitte beide Ansichten einfügen.', 'bad'); return; }
-  const res = ingestRequiredPair(html, gesamt);
+  if (!overview || !gesamt) { toast('Bitte beide Ansichten einfügen.', 'bad'); return; }
+  const res = ingestRequiredPair(overview, gesamt);
   if (!res.ok) { toast('❌ ' + esc(res.message), 'bad'); return; }
-  demoLoaded = false;
-  $('#inputHtml').value = '';
+  $('#inputOverview').value = '';
   $('#inputGesamt').value = '';
   toast(`✅ Ansichten übernommen — ${esc(res.message)}`, 'ok');
   alarmed.clear();
@@ -67,10 +65,8 @@ function analyze() {
 }
 
 function loadDemo() {
-  // Die Demo enthält eine Text- statt HTML-Übersicht und bleibt deshalb
-  // bewusst der einzige Kompatibilitätspfad für Beispieldaten.
-  ingest(DEMO_GESAMT); ingest(DEMO_UEBERSICHT);
-  demoLoaded = true;
+  const res = ingestRequiredPair(DEMO_UEBERSICHT, DEMO_GESAMT);
+  if (!res.ok) { toast('❌ ' + esc(res.message), 'bad'); return; }
   toast('Beispieldaten geladen.', 'ok');
   alarmed.clear(); render();
 }
@@ -154,13 +150,13 @@ function init() {
 
   $('#btnAnalyze').addEventListener('click', analyze);
   $('#btnDemo').addEventListener('click', loadDemo);
-  $('#btnClear').addEventListener('click', () => { clearAll(); demoLoaded = false; toast('Daten geleert.'); render(); });
+  $('#btnClear').addEventListener('click', () => { clearAll(); toast('Daten geleert.'); render(); });
   $('#btnFold').addEventListener('click', () => {
     const b = $('#importBody'); b.hidden = !b.hidden;
     $('#btnFold').textContent = b.hidden ? 'Einfügen ▸' : 'Einfügen ▾';
   });
   $('#alarmOn').addEventListener('change', (e) => persist.setAlarm(e.target.checked));
-  for (const input of [$('#inputHtml'), $('#inputGesamt')]) {
+  for (const input of [$('#inputOverview'), $('#inputGesamt')]) {
     input.addEventListener('keydown', (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); analyze(); }
     });
