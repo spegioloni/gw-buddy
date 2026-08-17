@@ -1,0 +1,361 @@
+GigraWars
+Eisen
+493.340
+Lutinum
+1.054.172
+Wasser
+585.432
+Wasserstoff
+918.488
+
+Planet 
+
+12:101:5 [M]
+ Übersicht
+ Konstruktion
+ Forschung
+ Schiffe/Türme
+ Handel
+ Technik
+Universum
+ Flotten
+ Galaxie
+ Events
+Allianz
+ Intern
+ Forum
+ Verwaltung
+Community
+ Nachrichten
+ Suche
+ Highscore
+Account
+ Statistik
+ Premium
+ Einstellungen
+ Logout
+Spieler Allianzen Planeten Kämpfe
+« Vorherige
+1
+2
+3
+4
+5
+…
+40
+Nächste »
+Koordinate	Besitzer	Punkte
+1	10:103:7	Pubsmaus	10.019
+2	10:73:8	capy	9.553
+3	9:122:5	capy	8.713
+4	10:24:10	capy	8.713
+5	12:76:3	capy	8.713
+6	10:82:12	capy	8.713
+7	11:44:4	capy	8.713
+8	9:42:10	capy	8.713
+9	8:75:1	capy	8.713
+10	10:66:11	capy	8.713
+11	11:132:12	capy	8.713
+12	12:73:11	vossibaer	8.642
+13	9:74:10	vossibaer	8.614
+14	14:73:12	vossibaer	8.602
+15	2:78:12	vossibaer	8.587
+16	8:79:11	vossibaer	8.559
+17	10:139:1	Mane	8.553
+18	11:72:12	vossibaer	8.546
+19	5:73:10	vossibaer	8.481
+20	19:73:12	vossibaer	8.454
+21	10:98:9	vossibaer	8.447
+22	10:51:3	vossibaer	8.402
+23	9:19:3	Eselhausen	8.204
+24	5:50:5	Blacklight	8.140
+25	8:41:2	Eselhausen	7.979
+26	14:27:1	R2_Night	7.902
+27	11:57:2	Nobody	7.838
+28	17:57:1	Eselhausen	7.805
+29	11:14:4	Blackbeard	7.756
+30	12:83:4	Blackbeard	7.747
+31	12:83:7	Blackbeard	7.680
+32	12:83:2	Blackbeard	7.678
+33	12:83:1	Blackbeard	7.678
+34	12:83:3	Blackbeard	7.668
+35	12:83:5	Blackbeard	7.650
+36	12:83:6	Blackbeard	7.625
+37	10:138:1	Mane	7.622
+38	11:139:3	Mane	7.622
+39	10:139:3	Mane	7.622
+40	11:139:1	Mane	7.622
+41	10:138:4	Mane	7.622
+42	10:139:4	Mane	7.622
+43	11:139:2	Mane	7.622
+44	10:139:2	Mane	7.622
+45	10:146:7	Mane	7.622
+46	8:41:1	Eselhausen	7.617
+47	11:3:1	Avalon_55	7.613
+48	12:83:8	Blackbeard	7.611
+49	10:61:1	Grisu	7.524
+50	10:13:1	Blacklight	7.506
+51	11:14:5	Blackbeard	7.493
+52	10:23:7	Bratmaxe1981	7.487
+53	11:3:9	Avalon_55	7.466
+54	10:52:1	Avalon_55	7.466
+55	10:58:4	Gekuan	7.433
+56	10:67:5	Darkhunter	7.419
+57	11:3:3	Avalon_55	7.412
+58	11:3:8	Avalon_55	7.412
+59	11:3:4	Avalon_55	7.411
+60	11:3:2	Avalon_55	7.411
+61	11:3:5	Avalon_55	7.411
+62	11:3:7	Avalon_55	7.411
+63	11:3:6	Avalon_55	7.400
+64	9:119:3	Gekuan	7.323
+65	11:111:5	Gekuan	7.323
+66	9:119:1	Gekuan	7.323
+67	9:119:6	Gekuan	7.323
+68	9:119:4	Gekuan	7.323
+69	9:119:2	Gekuan	7.323
+70	9:119:7	Gekuan	7.323
+71	10:115:3	Gekuan	7.323
+72	9:119:5	Gekuan	7.323
+73	15:50:5	Blacklight	7.314
+74	3:50:5	Blacklight	7.314
+75	12:50:5	Blacklight	7.314
+76	7:25:5	Blacklight	7.314
+77	13:50:5	Blacklight	7.314
+78	13:25:5	Blacklight	7.314
+79	7:50:5	Blacklight	7.314
+80	14:50:5	Blacklight	7.314
+81	10:25:9	Bratmaxe1981	7.278
+82	11:5:2	Megahoschi	7.256
+83	10:23:3	Megahoschi	7.256
+84	10:23:4	Megahoschi	7.256
+85	10:25:10	Bratmaxe1981	7.240
+86	11:5:1	Megahoschi	7.221
+87	10:23:2	Megahoschi	7.201
+88	10:5:2	Megahoschi	7.201
+89	11:5:5	Megahoschi	7.201
+90	11:5:3	Megahoschi	7.201
+91	11:5:6	Megahoschi	7.201
+92	11:5:4	Megahoschi	7.201
+93	10:34:7	Bratmaxe1981	7.155
+94	10:5:6	Bratmaxe1981	7.136
+95	10:25:6	Bratmaxe1981	7.130
+96	10:24:7	Bratmaxe1981	7.123
+97	10:25:7	Bratmaxe1981	7.109
+98	16:67:5	Darkhunter	7.089
+99	16:67:3	Darkhunter	7.089
+100	16:67:8	Darkhunter	7.089
+« Vorherige
+1
+2
+3
+4
+5
+…
+40
+Nächste »
+Hilfe Spielregeln Support Status Impressum v3.16.13-beta
+GigraWars
+Eisen
+493.367
+Lutinum
+1.054.192
+Wasser
+585.432
+Wasserstoff
+918.496
+
+Planet 
+
+12:101:5 [M]
+ Übersicht
+ Konstruktion
+ Forschung
+ Schiffe/Türme
+ Handel
+ Technik
+Universum
+ Flotten
+ Galaxie
+ Events
+Allianz
+ Intern
+ Forum
+ Verwaltung
+Community
+ Nachrichten
+ Suche
+ Highscore
+Account
+ Statistik
+ Premium
+ Einstellungen
+ Logout
+Spieler Allianzen Planeten Kämpfe
+« Vorherige
+1
+2
+3
+4
+5
+…
+40
+Nächste »
+Koordinate	Besitzer	Punkte
+101	16:67:1	Darkhunter	7.089
+102	16:67:6	Darkhunter	7.089
+103	16:67:4	Darkhunter	7.089
+104	16:67:9	Darkhunter	7.089
+105	16:67:2	Darkhunter	7.089
+106	16:67:7	Darkhunter	7.089
+107	10:32:9	Bratmaxe1981	6.963
+108	10:14:8	Grisu	6.942
+109	9:27:1	Grisu	6.942
+110	10:130:4	Grisu	6.942
+111	8:77:1	Grisu	6.942
+112	9:115:1	Grisu	6.942
+113	11:37:1	Grisu	6.942
+114	12:70:1	Grisu	6.942
+115	10:104:4	Grisu	6.942
+116	11:119:1	Grisu	6.942
+117	10:26:2	Bratmaxe1981	6.841
+118	10:94:2	Biervampir	6.749
+119	11:9:3	Hippy01	6.674
+120	10:123:12	The_Exploited	6.611
+121	10:85:1	Thor1972	6.568
+122	9:85:5	Thor1972	6.549
+123	9:85:3	Thor1972	6.549
+124	9:85:8	Thor1972	6.549
+125	9:85:1	Thor1972	6.549
+126	9:85:6	Thor1972	6.549
+127	9:85:4	Thor1972	6.549
+128	9:85:9	Thor1972	6.549
+129	9:85:2	Thor1972	6.549
+130	9:85:7	Thor1972	6.549
+131	10:73:1	DRAGONLORD	6.456
+132	11:9:2	Hippy01	6.409
+133	12:29:5	Hippy01	6.392
+134	10:19:5	MasterYodaz	6.377
+135	10:27:2	R2_Night	6.332
+136	11:124:4	Chris62	6.327
+137	9:28:5	Belanna	6.313
+138	9:68:5	Belanna	6.245
+139	11:72:7	Belanna	6.245
+140	10:76:9	Belanna	6.245
+141	9:148:3	Belanna	6.245
+142	9:68:4	Belanna	6.245
+143	11:72:8	Belanna	6.245
+144	10:76:8	Belanna	6.245
+145	9:28:3	Belanna	6.245
+146	9:148:4	Belanna	6.245
+147	10:60:9	shark65	6.227
+148	10:3:1	Hippy01	6.224
+149	10:78:2	pplolq33	6.152
+150	11:73:4	shark65	6.103
+151	11:9:1	Hippy01	6.094
+152	12:29:1	Hippy01	6.094
+153	8:15:1	MagicMike	6.089
+154	12:29:4	Hippy01	6.088
+155	10:45:3	shark65	6.063
+156	11:79:8	shark65	6.060
+157	12:52:1	DrPille	6.032
+158	11:72:1	shark65	6.023
+159	10:58:11	shark65	6.023
+160	10:49:8	shark65	6.017
+161	10:59:8	shark65	6.013
+162	11:77:5	shark65	6.012
+163	10:67:1	Free*to*Farm	6.008
+164	11:61:1	Maddins	5.995
+165	12:2:2	Barra	5.994
+166	12:29:6	Hippy01	5.994
+167	20:150:1	Barra	5.985
+168	12:29:2	Hippy01	5.958
+169	11:78:3	shark65	5.957
+170	11:82:8	Chris62	5.955
+171	10:123:2	Chris62	5.947
+172	20:132:9	Antarus	5.932
+173	12:29:3	Hippy01	5.915
+174	12:1:4	Barra	5.914
+175	10:57:1	Barra	5.872
+176	10:71:1	dumbu	5.870
+177	7:60:6	Bonsco	5.849
+178	10:57:4	Barra	5.805
+179	10:57:2	Barra	5.805
+180	12:12:12	K:TtyCaTtBeLLumB~Lee	5.771
+181	12:1:3	Barra	5.764
+182	12:2:1	Barra	5.746
+183	12:1:1	Barra	5.732
+184	10:34:6	Chris62	5.723
+185	9:44:3	Killfrog	5.710
+186	9:45:1	Killfrog	5.710
+187	9:44:7	Killfrog	5.710
+188	9:44:1	Killfrog	5.705
+189	9:44:6	Killfrog	5.705
+190	10:44:8	Killfrog	5.705
+191	20:132:1	Antarus	5.692
+192	12:1:2	Barra	5.690
+193	20:132:6	Antarus	5.681
+194	20:132:3	Antarus	5.680
+195	20:132:8	Antarus	5.680
+196	20:132:4	Antarus	5.680
+197	20:132:2	Antarus	5.680
+198	20:132:7	Antarus	5.680
+199	20:132:5	Antarus	5.680
+200	10:84:2	Chris62	5.675
+« Vorherige
+1
+2
+3
+4
+5
+…
+40
+Nächste »
+Hilfe Spielregeln Support Status Impressum v3.16.13-beta
+GigraWars
+Eisen
+493.394
+Lutinum
+1.054.212
+Wasser
+585.432
+Wasserstoff
+918.504
+
+Planet 
+
+12:101:5 [M]
+ Übersicht
+ Konstruktion
+ Forschung
+ Schiffe/Türme
+ Handel
+ Technik
+Universum
+ Flotten
+ Galaxie
+ Events
+Allianz
+ Intern
+ Forum
+ Verwaltung
+Community
+ Nachrichten
+ Suche
+ Highscore
+Account
+ Statistik
+ Premium
+ Einstellungen
+ Logout
+Spieler Allianzen Planeten Kämpfe
+« Vorherige
+1
+2
+3
+4
+5
+…
+40
+Nächste »
+Koordinate	Besitzer	Punkte

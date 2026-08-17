@@ -1,18 +1,25 @@
 // Bootstrap: Tabs, Paste-Auswertung, Live-Tick, Alarme. Kein API-Zugriff.
 import { state, serverNow, loadPersisted, ingest, ingestRequiredPair, hasRequiredData, clearAll, clearFarmReports, persist } from './state.js';
 import { nextImpact, resourceAt } from './analysis.js';
-import { clock, hhmmss, durLong, esc, coordChip } from './util/time.js';
+import { clock, hhmmss, durLong, esc, coordChip, num } from './util/time.js';
 import { deLabel } from './domain.js';
 import { renderLage } from './views/lage.js';
 import { renderBauen } from './views/bauen.js';
 import { renderFlotten } from './views/flotten.js';
 import { renderPrognose } from './views/prognose.js';
 import { renderFarmen } from './views/farmen.js';
+import { renderFarmradar, radarOrigins } from './views/farmradar.js';
+import { coordParts } from './radar.js';
+import * as sb from './sync/supabase.js';
+import { parsePlayerHighscore, parsePlanetHighscore } from './parse/highscore.js';
+import { detectType } from './parse/detect.js';
 import { setZoom } from './views/timeline.js';
 import { DEMO_GESAMT, DEMO_UEBERSICHT } from './demo.js';
 
 const $ = (s) => document.querySelector(s);
-const VIEWS = { lage: renderLage, bauen: renderBauen, flotten: renderFlotten, prognose: renderPrognose, farmen: renderFarmen };
+/** Tabs, die ohne die beiden Pflicht-Pastes auskommen. */
+const STANDALONE = new Set(['farmen', 'farmradar']);
+const VIEWS = { lage: renderLage, bauen: renderBauen, flotten: renderFlotten, prognose: renderPrognose, farmen: renderFarmen, farmradar: renderFarmradar };
 let tab = persist.getTab();
 let forecastPlanet = null;
 if (!VIEWS[tab]) tab = 'lage';
@@ -20,13 +27,13 @@ const alarmed = new Set();
 
 function render() {
   const fn = VIEWS[tab] || renderLage;
-  $('#view').innerHTML = tab === 'farmen'
+  $('#view').innerHTML = STANDALONE.has(tab)
     ? fn()
     : hasRequiredData()
     ? (tab === 'prognose' ? fn(forecastPlanet) : fn())
     : '<div class="empty">Füge zuerst die Übersichtsseite (HTML oder Text) und die Gesamtübersicht ein.</div>';
   document.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
-  $('#importPanel').hidden = tab === 'farmen' || (tab !== 'lage' && hasRequiredData());
+  $('#importPanel').hidden = STANDALONE.has(tab) || (tab !== 'lage' && hasRequiredData());
   renderStatus();
   tick();
 }
@@ -49,6 +56,217 @@ function switchTab(t) {
   tab = t; persist.setTab(t);
   closeDrawer();
   render();
+  if (t === 'farmradar') radarAutoLoad();
+  if (t === 'farmen') lootAutoLoad();
+}
+
+/* ---------- Farmradar (Supabase) ---------- */
+
+/** Läuft jede Radar-Aktion durch: Busy-Anzeige, Fehlermeldung, Re-Render. */
+async function radarAction(busy, fn) {
+  state.radar.busy = busy;
+  state.radar.error = null;
+  render();
+  try {
+    await fn();
+  } catch (e) {
+    state.radar.error = String(e?.message || e);
+  } finally {
+    state.radar.busy = null;
+    render();
+  }
+}
+
+async function radarRefreshUser() {
+  state.radar.user = await sb.currentUser();
+}
+
+/** Serverseitige Vorfilterung: nur der Sektor um die eigenen Planeten. */
+function radarQuery() {
+  const s = state.radar.settings;
+  const parts = radarOrigins().map(coordParts).filter(Boolean);
+  const q = { idleDays: s.idleDays, maxPoints: s.maxPoints };
+  if (!parts.length) return q;
+  if (s.sameGalaxyOnly) q.galaxies = [...new Set(parts.map((p) => p.galaxy))];
+  const systems = parts.map((p) => p.system);
+  q.systemFrom = Math.min(...systems) - s.maxSystems;
+  q.systemTo = Math.max(...systems) + s.maxSystems;
+  return q;
+}
+
+async function radarLoad() {
+  const [rows, snapshots] = await Promise.all([sb.fetchFarms(radarQuery()), sb.fetchSnapshots()]);
+  state.radar.rows = rows;
+  state.radar.snapshots = snapshots;
+  state.radar.loadedAt = Date.now();
+  state.radar.notice = rows.length ? null : 'Die Abfrage lieferte keine Zeilen — sind schon zwei Importe an verschiedenen Tagen drin?';
+}
+
+/** Beim ersten Öffnen des Tabs automatisch laden. */
+function radarAutoLoad() {
+  if (!sb.isConfigured()) return;
+  radarAction('load', async () => {
+    if (!state.radar.user) await radarRefreshUser();
+    if (state.radar.user && !state.radar.rows.length) await radarLoad();
+  });
+}
+
+async function radarPush() {
+  const text = state.radar.paste.trim();
+  if (!text) throw new Error('Bitte zuerst eine Highscore-Liste einfügen.');
+  const type = detectType(text);
+  let res;
+  if (type === 'highscore_spieler') {
+    const parsed = parsePlayerHighscore(text);
+    if (!parsed.rows.length) throw new Error('Keine Spielerzeilen erkannt.');
+    res = await sb.pushPlayers(parsed.rows);
+    toast(`✅ ${num(res.rows)} Spieler übertragen · ${num(res.changed)} verändert`, 'ok');
+  } else if (type === 'highscore_planeten') {
+    const parsed = parsePlanetHighscore(text);
+    if (!parsed.rows.length) throw new Error('Keine Planetenzeilen erkannt.');
+    res = await sb.pushPlanets(parsed.rows);
+    toast(`✅ ${num(res.rows)} Planeten übertragen · ${num(res.changed)} verändert`, 'ok');
+  } else {
+    throw new Error('Das sieht nicht nach einer Highscore-Liste aus (Reiter „Spieler" oder „Planeten").');
+  }
+  state.radar.paste = '';
+  await radarLoad();
+}
+
+function radarClick(e) {
+  if (e.target.closest('#btnRadarSaveCfg')) {
+    const url = $('#radarUrl').value, key = $('#radarKey').value;
+    if (!url || !key) { toast('Bitte URL und anon-Key eintragen.', 'bad'); return true; }
+    sb.setConfig(url, key);
+    state.radar.editCfg = false;
+    radarAction('login', radarRefreshUser);
+    return true;
+  }
+  if (e.target.closest('#btnRadarResetCfg')) { state.radar.editCfg = true; render(); return true; }
+  if (e.target.closest('#btnRadarLogin')) {
+    const email = $('#radarEmail').value.trim(), pass = $('#radarPass').value;
+    persist.setRadar({ email });
+    radarAction('login', async () => {
+      await sb.signIn(email, pass);
+      await radarRefreshUser();
+      await radarLoad();
+    });
+    return true;
+  }
+  if (e.target.closest('#btnRadarLogout')) {
+    radarAction('login', async () => {
+      await sb.signOut();
+      state.radar.user = null; state.radar.rows = []; state.radar.snapshots = [];
+      // Ohne Login ist das Archiv nicht mehr lesbar — sonst zeigte der
+      // Farmatlas weiter Zahlen, die niemand mehr nachladen kann.
+      state.loot.rows = []; state.loot.targets = []; state.loot.loadedAt = null;
+    });
+    return true;
+  }
+  if (e.target.closest('#btnRadarPush')) { radarAction('push', radarPush); return true; }
+  if (e.target.closest('#btnRadarLoad')) { radarAction('load', radarLoad); return true; }
+  return false;
+}
+
+/**
+ * Der eingefügte Text lebt im State, nicht im DOM — sonst verliert ihn das
+ * nächste Re-Render (Countdown, Busy-Anzeige, Fensterbreite). Neu gezeichnet
+ * wird nur, wenn sich die erkannte Listenart ändert; die Erkennung läuft
+ * entprellt, weil sie über den kompletten Paste geht.
+ */
+let pasteSig = 'leer';
+let pasteTimer = null;
+function radarInput(e) {
+  if (e.target.id === 'inputFarmReports') { state.farmPaste = e.target.value; return true; }
+  if (e.target.id !== 'inputHighscore') return false;
+  state.radar.paste = e.target.value;
+  clearTimeout(pasteTimer);
+  pasteTimer = setTimeout(() => {
+    const sig = state.radar.paste.trim() ? detectType(state.radar.paste) : 'leer';
+    if (sig !== pasteSig) { pasteSig = sig; render(); }
+  }, 200);
+  return true;
+}
+
+function radarChange(e) {
+  const field = e.target.dataset.radar;
+  if (!field) return false;
+  let value;
+  if (field === 'sameGalaxyOnly') value = e.target.checked;
+  else if (field === 'maxPoints') value = e.target.value === '' ? null : Number(e.target.value);
+  else if (field === 'center') value = e.target.value.trim();
+  else value = Number(e.target.value);
+  persist.setRadar({ [field]: value });
+  // Umkreis und Galaxiefilter schränken schon die Abfrage ein -> neu laden.
+  if (['maxSystems', 'idleDays', 'maxPoints', 'sameGalaxyOnly', 'center'].includes(field) && state.radar.user) {
+    radarAction('load', radarLoad);
+  } else render();
+  return true;
+}
+
+/* ---------- Beute-Archiv (Supabase) ---------- */
+
+async function lootAction(busy, fn) {
+  state.loot.busy = busy;
+  state.loot.error = null;
+  render();
+  try {
+    await fn();
+  } catch (e) {
+    state.loot.error = String(e?.message || e);
+  } finally {
+    state.loot.busy = null;
+    render();
+  }
+}
+
+async function lootLoad() {
+  const [rows, targets] = await Promise.all([
+    sb.fetchLootDaily(state.loot.days), sb.fetchLootTargets(),
+  ]);
+  state.loot.rows = rows;
+  state.loot.targets = targets;
+  state.loot.loadedAt = Date.now();
+}
+
+async function lootPush() {
+  if (!state.farmReports.length) throw new Error('Zuerst Angriffsberichte einfügen und auswerten.');
+  const res = await sb.pushFarmReports(state.farmReports);
+  const parts = [`${num(res.changed)} neue Berichte archiviert`];
+  const known = res.rows - res.changed;
+  if (known > 0) parts.push(`${num(known)} schon bekannt`);
+  if (res.skipped) parts.push(`${num(res.skipped)} ohne Zeitstempel übersprungen`);
+  state.loot.notice = parts.join(' · ');
+  toast(`✅ ${parts.join(' · ')}`, 'ok');
+  await lootLoad();
+}
+
+/** Beim Öffnen des Farmen-Tabs das Archiv einmal holen. */
+function lootAutoLoad() {
+  if (!sb.isConfigured() || state.loot.loadedAt) return;
+  lootAction('load', async () => {
+    if (!state.radar.user) await radarRefreshUser();
+    if (state.radar.user) await lootLoad();
+  });
+}
+
+function lootClick(e) {
+  if (e.target.closest('#btnLootPush')) { lootAction('push', lootPush); return true; }
+  if (e.target.closest('#btnLootLoad')) { lootAction('load', lootLoad); return true; }
+  return false;
+}
+
+function lootChange(e) {
+  const field = e.target.dataset.loot;
+  if (!field) return false;
+  if (field === 'days') {
+    state.loot.days = Number(e.target.value);
+    lootAction('load', lootLoad);
+  } else {
+    state.loot.split = e.target.value;
+    render();
+  }
+  return true;
 }
 
 function analyze() {
@@ -164,6 +382,8 @@ function init() {
 
   // Zoom-Stufen der Gantt-Zeitachse (im Lage-Tab).
   $('#view').addEventListener('click', (e) => {
+    if (radarClick(e)) return;
+    if (lootClick(e)) return;
     const farmMore = e.target.closest('[data-farm-list]');
     if (farmMore) {
       const list = farmMore.dataset.farmList;
@@ -171,10 +391,11 @@ function init() {
       render(); return;
     }
     if (e.target.closest('#btnAnalyzeFarms')) {
-      const text = $('#inputFarmReports').value.trim();
+      const text = state.farmPaste.trim();
       if (!text) { toast('Bitte Angriffsberichte einfügen.', 'bad'); return; }
       const result = ingest(text);
       if (!result.ok || result.type !== 'farmberichte') { toast('Konnte keine Angriffsberichte erkennen.', 'bad'); return; }
+      state.farmPaste = '';
       toast(`✅ ${result.message}`, 'ok'); render(); return;
     }
     if (e.target.closest('#btnClearFarms')) {
@@ -184,7 +405,10 @@ function init() {
     const zoom = e.target.closest('[data-tlzoom]');
     if (zoom) { setZoom(zoom.dataset.tlzoom); render(); }
   });
+  $('#view').addEventListener('input', radarInput);
   $('#view').addEventListener('change', (e) => {
+    if (radarChange(e)) return;
+    if (lootChange(e)) return;
     if (e.target.id === 'forecastPlanet') { forecastPlanet = e.target.value; render(); }
     if (e.target.matches('[data-forecast-target]')) {
       const value = e.target.value === '' ? null : Number(e.target.value);
@@ -267,5 +491,9 @@ function init() {
 
   setInterval(tick, 250);
   render();
+  if (tab === 'farmradar') radarAutoLoad();
+  if (tab === 'farmen') lootAutoLoad();
+  // Hook für die Playwright-Rauchtests (test/*.mjs) — sonst ungenutzt.
+  window.__gw = { state, render };
 }
 document.addEventListener('DOMContentLoaded', init);

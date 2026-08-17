@@ -16,8 +16,9 @@ export const state = {
   uebersichtText: '',
   htmlText: '',
   farmText: '',
+  farmPaste: '',         // Inhalt des Eingabefelds (überlebt Re-Renders)
   farmReports: [],
-  farmShowAll: { profitable: false, unvisited: false },
+  farmShowAll: { profitable: false, unvisited: false, enroute: false },
   gesamt: null,          // geparste Gesamtübersicht
   uebersicht: null,      // geparste Übersichtsseite
   ownPlanets: new Set(), // eigene Koordinaten (persistiert)
@@ -34,11 +35,44 @@ export const state = {
   buildSource: null,     // welche Quelle die Bauaufträge geliefert hat
   snapshotAge: null,     // Sekunden zwischen Snapshot und Paste-Moment
   lastError: null,
+  radar: {               // Farmradar (Supabase) — nur Laufzeitzustand
+    settings: null,      // wird in loadPersisted() gesetzt
+    user: null,          // eingeloggter Supabase-Nutzer
+    rows: [],            // Zeilen aus der View `inactive_farms`
+    snapshots: [],       // letzte Importe
+    paste: '',           // eingefügte Highscore-Liste (überlebt Re-Renders)
+    loadedAt: null,
+    busy: null,          // 'login' | 'load' | 'push' | null
+    error: null,
+    notice: null,
+    editCfg: false,      // Konfigurationsformular sichtbar?
+  },
+  loot: {                // Beute-Archiv (Supabase) — nur Laufzeitzustand
+    rows: [],            // Zeilen aus der View `farm_loot_daily`
+    targets: [],         // Zeilen aus der View `farm_loot_targets`
+    loadedAt: null,
+    busy: null,          // 'load' | 'push' | null
+    error: null,
+    notice: null,
+    split: 'resource',   // Aufteilung der Balken: 'resource' | 'origin'
+    days: 30,            // Zeitfenster des Diagramms
+  },
+};
+
+/** Voreinstellungen des Farmradars (überschreibbar per UI, in localStorage). */
+export const RADAR_DEFAULTS = {
+  idleDays: 3,
+  maxSystems: 20,
+  sameGalaxyOnly: true,
+  maxPoints: null,
+  email: '',
+  center: '',            // optionaler Bezugspunkt, falls keine Gesamtübersicht da ist
 };
 
 export const serverNow = () => Date.now() + state.serverOffset;
 
 export function loadPersisted() {
+  state.radar.settings = { ...RADAR_DEFAULTS, ...LS.get('radar', {}) };
   state.gesamtText = LS.get('gesamtText', '');
   state.uebersichtText = LS.get('uebersichtText', '');
   state.htmlText = LS.get('htmlText', '');
@@ -92,9 +126,12 @@ export function ingest(text) {
   } else if (type === 'farmberichte') {
     state.farmText = text;
     state.farmReports = parseFarmReports(text);
-    state.farmShowAll = { profitable: false, unvisited: false };
+    state.farmShowAll = { profitable: false, unvisited: false, enroute: false };
     LS.set('farmText', text);
     return { type, ok: true, message: `${state.farmReports.length} Berichte · ${farmSummary(state.farmReports).farms.length} Farmen` };
+  } else if (type === 'highscore_spieler' || type === 'highscore_planeten') {
+    state.lastError = 'Highscore-Listen gehören in den Farmradar-Tab.';
+    return { type, ok: false, message: state.lastError };
   } else {
     state.lastError = 'Konnte den Text keinem Format zuordnen.';
     return { type, ok: false, message: state.lastError };
@@ -156,7 +193,7 @@ export function clearAll() {
 export function clearFarmReports() {
   state.farmText = '';
   state.farmReports = [];
-  state.farmShowAll = { profitable: false, unvisited: false };
+  state.farmShowAll = { profitable: false, unvisited: false, enroute: false };
   LS.set('farmText', '');
 }
 
@@ -338,5 +375,12 @@ export const persist = { setAlarm: (v) => LS.set('alarm', v), getAlarm: () => LS
     if (value == null) delete targets[id];
     else targets[id] = value;
     LS.set('forecastTargets', targets);
+  },
+  getRadar: () => ({ ...RADAR_DEFAULTS, ...LS.get('radar', {}) }),
+  setRadar: (patch) => {
+    const next = { ...RADAR_DEFAULTS, ...LS.get('radar', {}), ...patch };
+    LS.set('radar', next);
+    state.radar.settings = next;
+    return next;
   },
 };

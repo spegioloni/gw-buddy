@@ -4,3 +4,10 @@ Thumbs.db
 
 # Node (nur für Tests, kein Build)
 node_modules/
+
+# Rauchtest-Artefakte
+shot-*.png
+
+# Rohe Spielstands-Pastes (enthalten Kontodaten)
+browser_copies_*.txt
+__pycache__/

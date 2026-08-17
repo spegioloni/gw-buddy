@@ -82,10 +82,10 @@ a{color:var(--own)}
 .panel .head h3{font-size:14px}
 .panel .head .hint{font-size:12px;color:var(--dim);font-family:var(--fontM)}
 .panel .body{padding:15px}
-textarea#inputHtml,textarea#inputGesamt{display:block;width:100%;min-height:120px;resize:vertical;background:var(--bg);color:var(--ink);
+textarea#inputHtml,textarea#inputOverview,textarea#inputGesamt{display:block;width:100%;min-height:120px;resize:vertical;background:var(--bg);color:var(--ink);
   border:1px solid var(--line2);border-radius:var(--r-sm);padding:12px;font-family:var(--fontM);font-size:12.5px;line-height:1.55}
 textarea#inputGesamt{margin-top:10px}
-textarea#inputFarmReports{display:block;width:100%;min-height:230px;resize:vertical;background:var(--bg);color:var(--ink);
+textarea#inputFarmReports,textarea#inputHighscore{display:block;width:100%;min-height:230px;resize:vertical;background:var(--bg);color:var(--ink);
   border:1px solid var(--line2);border-radius:var(--r-sm);padding:12px;font-family:var(--fontM);font-size:12.5px;line-height:1.55}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px}
 
@@ -227,11 +227,55 @@ textarea#inputFarmReports{display:block;width:100%;min-height:230px;resize:verti
 .farm-list{display:flex;flex-direction:column;gap:7px}
 .farm-row{display:grid;grid-template-columns:50px minmax(170px,1fr) minmax(130px,.65fr) minmax(310px,1.25fr);align-items:center;gap:14px;padding:12px 14px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm)}
 .farm-row:hover{border-color:var(--safe)}.farm-row.stale{opacity:.78;border-style:dashed}
+.farm-row.enroute{opacity:1;border-style:solid;border-color:color-mix(in srgb,var(--brand) 45%,var(--line))}
+.farm-flight{color:var(--brand)!important;grid-column:1/-1!important;line-height:1.35}.farm-flight .cd{color:var(--brand);font-size:11px}
+.farm-subhead{font-family:var(--fontD);font-size:14.5px;margin:22px 0 0;color:var(--brand)}
 .farm-rank{font-weight:700;color:var(--safe);font-size:15px}.farm-target{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:3px 9px;align-items:center;min-width:0}.farm-target b{font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.farm-target small{grid-column:2;color:var(--dim);font-size:11px}
 .farm-loot{display:flex;flex-direction:column}.farm-loot b{font-size:18px;color:#fff}.farm-loot small{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
 .farm-res{display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;font-size:11.5px;color:var(--dim)}.farm-res span:first-letter{color:var(--safe);font-weight:700}
 .farm-more{margin-top:10px}
 @media (max-width:1100px){.farm-columns{grid-template-columns:1fr}}
+
+/* ---------- Farmradar ---------- */
+.inp{background:var(--bg);border:1px solid var(--line);border-radius:var(--r-sm);color:var(--ink);
+  font:400 13px var(--fontM);padding:8px 11px;min-width:0}
+.inp:focus{outline:none;border-color:var(--safe)}
+.radar-cfg{flex-wrap:wrap;gap:8px}.radar-cfg .inp{flex:1 1 220px}
+.radar-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px 18px;align-items:start}
+.radar-grid>label{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--dim)}
+.radar-grid>label.switch{flex-direction:row;align-items:center;align-self:center}
+.radar-grid>label b{font-size:12px;color:var(--safe)}
+.radar-grid input[type=range]{accent-color:var(--safe);width:100%}
+.empty.bad{color:var(--threat)}
+
+/* ---------- Diagramme (Beute-Archiv) ---------- */
+.loot-actions{flex-wrap:wrap;gap:10px;align-items:flex-end}
+.loot-actions .inp{display:flex;flex-direction:column;gap:5px;font:400 11px var(--fontM);
+  color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
+.loot-actions .inp select{background:transparent;border:0;color:var(--ink);font:400 13px var(--fontM);
+  padding:0;outline:none}
+.hint.ok{color:var(--safe)}
+.chart{margin:0;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);padding:12px}
+.chart svg{display:block;width:100%;height:260px}
+.chart-grid{stroke:var(--line);stroke-width:1}
+.chart-axis{fill:var(--dim);font:400 10.5px var(--fontM)}
+.chart-empty{color:var(--dim);font-size:13px;padding:14px 0}
+.chart-legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;font:400 11.5px var(--fontM);color:var(--dim)}
+.chart-key{display:inline-flex;align-items:center;gap:6px}
+.chart-key i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.barlist{display:flex;flex-direction:column;gap:7px}
+.barlist-row{display:grid;grid-template-columns:minmax(150px,1.1fr) 3fr minmax(96px,auto);
+  gap:12px;align-items:center}
+.barlist-label{display:flex;align-items:center;gap:7px;font-size:12.5px;min-width:0}
+.barlist-label b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.barlist-track{background:var(--bg);border-radius:99px;height:10px;overflow:hidden}
+.barlist-fill{height:100%;border-radius:99px}
+.barlist-value{text-align:right;font-size:12.5px;display:flex;flex-direction:column;line-height:1.25}
+.barlist-value small{color:var(--dim);font-size:10.5px}
+@media (max-width:640px){
+  .barlist-row{grid-template-columns:1fr auto;grid-template-areas:'label value' 'track track'}
+  .barlist-label{grid-area:label}.barlist-value{grid-area:value}.barlist-track{grid-area:track}
+}
 
 /* ---------- Freie-Kapazität ---------- */
 .cap-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
