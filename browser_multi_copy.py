@@ -58,6 +58,8 @@ except ImportError:
     print("    py -m pip install pyautogui pygetwindow pyperclip pywin32")
     sys.exit(1)
 
+import gw_supabase
+
 pyautogui.FAILSAFE = True  # Maus in linke obere Ecke = Notaus
 pyautogui.PAUSE = 0.05
 
@@ -72,12 +74,61 @@ PAGE_PARAM_RE = re.compile(r"([?&]page=)(\d+)")
 
 # Fest eingetragene Seiten-URL. Die Seitenzahl (page=...) wird vom Skript
 # automatisch ersetzt und hochgezaehlt.
-BASE_URL = "https://uni5.gigrawars.de/app/12:101:5/highscore/planet?page=2"
+BASE_URL_PLANETS = "https://uni5.gigrawars.de/app/12:101:5/highscore/planet?page=2"
+BASE_URL_PLAYERS = "https://uni5.gigrawars.de/app/12:101:5/highscore/player?sort=allPoints&page=2"
 
 START_PAGE = 1  # Es wird immer bei Seite 1 begonnen
-LAST_PAGE = 9  # Standard fuer die letzte Seite der Paginierung
-LOAD_DELAY = 1  # Wartezeit nach dem Laden: 1s + zufaellig 0-1s
-ROUND_DELAY = 1  # Wartezeit zwischen den Runden: 1s + zufaellig 0-1s
+LAST_PAGE_PLANETS = 40  # Feste letzte Seite der Planeten-Paginierung
+LAST_PAGE_PLAYERS = 9  # Feste letzte Seite der Spieler-Paginierung
+LOAD_DELAY = 1  # Wartezeit nach dem Laden: 1s + Bezier-Zufall 0-1s
+ROUND_DELAY = 1  # Wartezeit zwischen den Runden: 1s + Bezier-Zufall 0-1s
+
+# Kontrollpunkte der kubischen Bezier-Kurve, nach der die Zufallszeit verteilt
+# wird. Start (0,0) und Ende (1,1) sind fest, hier stehen nur P1 und P2.
+# Werte < 0.5 verschieben die Verteilung nach unten (haeufiger kurze Pausen),
+# Werte > 0.5 nach oben (haeufiger lange Pausen).
+BEZIER_P1 = 0.25
+BEZIER_P2 = 0.85
+
+# Die beiden Durchlaeufe in der Reihenfolge, in der sie abgearbeitet werden:
+# erst alle Spieler, dann alle Planeten. Jeder Durchlauf bekommt eine
+# eigene Ergebnisdatei.
+JOBS = (
+    {
+        "key": "players",
+        "name": "Spieler",
+        "url": BASE_URL_PLAYERS,
+        "last_page": LAST_PAGE_PLAYERS,
+        "file_prefix": "highscore_player",
+    },
+    {
+        "key": "planets",
+        "name": "Planeten",
+        "url": BASE_URL_PLANETS,
+        "last_page": LAST_PAGE_PLANETS,
+        "file_prefix": "highscore_planet",
+    },
+)
+
+# Nach jedem Durchlauf direkt nach Supabase hochladen? Der Login erfolgt
+# einmal vor dem Start (Zugangsdaten aus GW_SUPABASE_EMAIL /
+# GW_SUPABASE_PASSWORD, sonst Abfrage). Die Textdateien werden trotzdem
+# geschrieben - sie bleiben die Sicherung, falls der Upload scheitert.
+UPLOAD_TO_SUPABASE = True
+
+# --- Grundlage der Laufzeit-Schaetzung ------------------------------------
+# Summe der FESTEN Wartezeiten pro Seite (ohne die zufaellige Bezier-Pause):
+#   Navigation: 0.35 + 0.10 + 0.15 + 0.25 = 0.85 s
+#   Kopieren:   0.30 (Auswahl) + 0.10 (Zwischenablage leeren) = 0.40 s
+#   pyautogui.PAUSE nach rund 9 Tastenbefehlen                = 0.45 s
+FIXED_PER_PAGE = 1.70
+# Zeit fuer das Tippen eines URL-Zeichens (type_unicode).
+TYPE_DELAY = 0.004
+# Warten auf die Zwischenablage: einmal beim Pruefen der Adresszeile, einmal
+# beim Kopieren des Seiteninhalts. Kurze Seiten sind schnell, grosse Listen
+# brauchen laenger - daher eine Spanne.
+CLIPBOARD_WAIT_MIN = 0.15
+CLIPBOARD_WAIT_MAX = 0.60
 
 # Marker, an denen eine versehentlich geladene Suchergebnisseite erkannt wird.
 SEARCH_PAGE_MARKERS = (
@@ -294,27 +345,35 @@ def looks_like_search_page(content):
     return any(marker in lowered for marker in SEARCH_PAGE_MARKERS)
 
 
-def build_url_template(url=BASE_URL):
-    """Baut aus der fest eingetragenen URL eine Vorlage mit Platzhalter."""
+def build_url_template(url):
+    """Baut aus einer fest eingetragenen URL eine Vorlage mit Platzhalter."""
     match = PAGE_PARAM_RE.search(url)
     if not match:
         print(
-            "FEHLER: In BASE_URL wurde kein 'page=<Zahl>' gefunden.\n"
-            f"BASE_URL = {url}\n"
+            "FEHLER: In der URL wurde kein 'page=<Zahl>' gefunden.\n"
+            f"URL = {url}\n"
             "Bitte oben im Skript eine URL mit z.B. '...&page=2' eintragen."
         )
         sys.exit(1)
     return PAGE_PARAM_RE.sub(r"\g<1>{page}", url, count=1)
 
 
-def get_int(prompt, default=None):
-    while True:
-        raw = input(prompt).strip()
-        if not raw and default is not None:
-            return default
-        if raw.isdigit():
-            return int(raw)
-        print("Bitte eine Zahl eingeben.")
+def bezier_random(p1=BEZIER_P1, p2=BEZIER_P2):
+    """Zufallswert zwischen 0 und 1, verteilt nach einer kubischen Bezier-Kurve.
+
+    Es wird ein gleichverteilter Parameter t aus [0,1] gezogen und durch die
+    Bezier-Funktion mit den Kontrollpunkten (0, p1, p2, 1) geschickt:
+
+        B(t) = 3*(1-t)^2*t*p1 + 3*(1-t)*t^2*p2 + t^3
+
+    Start- und Endpunkt sind 0 und 1, die Grenzen bleiben also erhalten. Die
+    Kurvenform bestimmt lediglich, welche Werte dazwischen haeufiger auftreten -
+    dadurch wirken die Pausen weniger maschinell als bei Gleichverteilung.
+    """
+    t = random.random()
+    inv = 1.0 - t
+    value = 3 * inv * inv * t * p1 + 3 * inv * t * t * p2 + t ** 3
+    return min(1.0, max(0.0, value))
 
 
 # ---------------------------------------------------------------------------
@@ -372,106 +431,252 @@ def navigate_to(hwnd, url, attempts=3):
 # ---------------------------------------------------------------------------
 
 
+def captures_to_text(captures):
+    """Rohinhalte aller Seiten untereinander - ohne Trennzeilen."""
+    parts = []
+    for _, content in captures:
+        text = normalize_newlines(content)
+        if not text.endswith("\n"):
+            text += "\n"
+        parts.append(text)
+    return "".join(parts)
+
+
+def save_captures(captures, file_prefix, label):
+    """Schreibt die gesammelten Rohinhalte eines Durchlaufs in eine Datei."""
+    if not captures:
+        print(f"\n[{label}] Keine Kopien vorhanden, es wird nichts gespeichert.")
+        return None
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out_path = f"{file_prefix}_{timestamp}.txt"
+    # newline="" verhindert, dass Python die Zeilenenden nochmals umschreibt.
+    # Es werden ausschliesslich die Rohinhalte untereinander geschrieben -
+    # keine Trennzeilen, keine Ueberschriften.
+    with open(out_path, "w", encoding="utf-8", newline="") as handle:
+        handle.write(captures_to_text(captures).replace("\n", "\r\n"))
+    print(f"\n[{label}] {len(captures)} Kopie(n) gespeichert in:\n  {out_path}")
+    return out_path
+
+
+def upload_captures(session, job, captures):
+    """Laedt einen fertigen Durchlauf nach Supabase.
+
+    Ein Fehler beim Upload darf den Lauf nicht abbrechen - die Textdatei ist
+    zu diesem Zeitpunkt bereits geschrieben und kann jederzeit nachtraeglich
+    per 'py gw_supabase.py <players|planets> <datei>' hochgeladen werden.
+    """
+    if session is None or not captures:
+        return
+    label = job["name"]
+    try:
+        result = gw_supabase.upload(session, job["key"], captures_to_text(captures))
+    except gw_supabase.SupabaseError as exc:
+        print(f"[{label}] Upload fehlgeschlagen: {exc}")
+        print(f"[{label}] Die gespeicherte Datei kann spaeter nachgereicht werden.")
+        return
+    if not result["rows"]:
+        print(f"[{label}] Upload: keine auswertbaren Zeilen gefunden - nichts gesendet.")
+        return
+    print(
+        f"[{label}] Upload nach Supabase: {result['rows']} Zeile(n) gesendet, "
+        f"{result['changed']} geaendert."
+    )
+
+
+def run_job(hwnd, job, captures):
+    """Arbeitet einen Durchlauf (Spieler oder Planeten) Seite fuer Seite ab.
+
+    Die Liste 'captures' wird von aussen uebergeben, damit bei einem Abbruch
+    (Strg+C oder Notaus) die bereits gesammelten Seiten gespeichert werden.
+    """
+    label = job["name"]
+    template = build_url_template(job["url"])
+    last_page = job["last_page"]
+    iterations = last_page - START_PAGE + 1
+    if iterations < 1:
+        print(f"[{label}] Ungueltige Seitenzahl ({last_page}) - uebersprungen.")
+        return
+
+    print(f"\n==================== {label} ====================")
+    print(f"URL-Vorlage: {template}")
+    print(f"Es werden die Seiten {START_PAGE} bis {last_page} kopiert.")
+
+    for index in range(iterations):
+        page_number = START_PAGE + index
+        url = template.format(page=page_number)
+        print(f"\n--- {label} | Runde {index + 1}/{iterations} | Seite {page_number} ---")
+
+        if not activate_window(hwnd):
+            print(
+                "Fenster konnte nicht in den Vordergrund geholt werden - "
+                "Runde uebersprungen (es werden keine Tasten gesendet)."
+            )
+            continue
+
+        if not navigate_to(hwnd, url):
+            print("Navigation fehlgeschlagen - Runde uebersprungen.")
+            continue
+
+        time.sleep(LOAD_DELAY + bezier_random())
+
+        if not is_foreground(hwnd):
+            print("Fokus verloren - Runde uebersprungen.")
+            continue
+
+        pyautogui.hotkey("ctrl", "a")
+        time.sleep(0.3)
+        content = copy_and_wait(hwnd)
+
+        if not content:
+            print("Warnung: Es konnte kein Inhalt kopiert werden.")
+            continue
+
+        if looks_like_search_page(content):
+            print(
+                "Warnung: Der kopierte Inhalt sieht nach einer "
+                "Suchergebnisseite aus - er wird VERWORFEN."
+            )
+            continue
+
+        captures.append((page_number, content))
+        preview = content[:80].replace("\n", " ")
+        print(f"Kopiert ({len(content)} Zeichen): {preview}...")
+
+        if index < iterations - 1:
+            time.sleep(ROUND_DELAY + bezier_random())
+
+
+def format_duration(seconds):
+    """Sekunden -> 'h:mm:ss' bzw. 'mm:ss' fuer kurze Laeufe."""
+    seconds = int(round(seconds))
+    hours, rest = divmod(seconds, 3600)
+    minutes, secs = divmod(rest, 60)
+    if hours:
+        return f"{hours}:{minutes:02d}:{secs:02d} h"
+    return f"{minutes}:{secs:02d} min"
+
+
+def estimate_job_seconds(job):
+    """Kuerzeste und laengste erwartete Laufzeit eines Durchlaufs in Sekunden.
+
+    Grundlage sind die tatsaechlich im Code stehenden Wartezeiten. Der
+    Unterschied zwischen 'von' und 'bis' entsteht durch die Bezier-Pause
+    (0-1 s nach dem Laden und 0-1 s zwischen den Runden) und durch die
+    Wartezeit auf die Zwischenablage. Nicht enthalten sind Ladezeiten des
+    Servers und fehlgeschlagene Runden, die wiederholt werden.
+    """
+    pages = job["last_page"] - START_PAGE + 1
+    if pages < 1:
+        return 0.0, 0.0
+
+    typing = len(job["url"]) * TYPE_DELAY
+    base = FIXED_PER_PAGE + typing + LOAD_DELAY
+    # Die Pause zwischen den Runden entfaellt nach der letzten Seite.
+    gaps = pages - 1
+
+    fastest = pages * (base + 2 * CLIPBOARD_WAIT_MIN) + gaps * ROUND_DELAY
+    # Schlimmster Fall: Bezier liefert 1 s nach dem Laden und 1 s pro Pause.
+    slowest = pages * (base + 2 * CLIPBOARD_WAIT_MAX + 1.0) + gaps * (ROUND_DELAY + 1.0)
+    return fastest, slowest
+
+
+def print_estimate():
+    """Zeigt je Durchlauf und in Summe, wie lange der Lauf dauern wird."""
+    total_min = 0.0
+    total_max = 0.0
+    print("\nGeplante Durchlaeufe:")
+    for job in JOBS:
+        pages = job["last_page"] - START_PAGE + 1
+        fastest, slowest = estimate_job_seconds(job)
+        total_min += fastest
+        total_max += slowest
+        print(
+            f"  - {job['name']}: Seiten {START_PAGE} bis {job['last_page']} "
+            f"({pages} Seiten) -> {format_duration(fastest)} bis "
+            f"{format_duration(slowest)}"
+        )
+
+    now = time.time()
+    ende_min = datetime.fromtimestamp(now + total_min).strftime("%H:%M")
+    ende_max = datetime.fromtimestamp(now + total_max).strftime("%H:%M")
+    print(
+        f"\nGeschaetzte Gesamtdauer: {format_duration(total_min)} bis "
+        f"{format_duration(total_max)}"
+    )
+    print(f"Voraussichtlich fertig zwischen {ende_min} und {ende_max} Uhr.")
+    print(
+        "Hinweis: ohne Server-Ladezeiten und ohne Wiederholungen "
+        "fehlgeschlagener Runden."
+    )
+    return total_min, total_max
+
+
+def confirm(prompt):
+    """Startet nur bei ausdruecklicher Zustimmung (j/ja/y/yes)."""
+    answer = input(prompt).strip().lower()
+    return answer in ("j", "ja", "y", "yes")
+
+
+def connect_supabase():
+    """Meldet sich VOR dem Lauf an, damit falsche Zugangsdaten sofort
+    auffallen und nicht erst nach 50 kopierten Seiten. Bei Fehlschlag laeuft
+    das Skript ohne Upload weiter - die Dateien entstehen trotzdem."""
+    if not UPLOAD_TO_SUPABASE:
+        return None
+    print("\nSupabase-Login (Enter ohne Eingabe = ohne Upload fortfahren):")
+    try:
+        session = gw_supabase.sign_in()
+    except gw_supabase.SupabaseError as exc:
+        print(f"  Kein Upload: {exc}")
+        return None
+    print("  Login erfolgreich - die Ergebnisse werden hochgeladen.")
+    return session
+
+
 def main():
     print("=== Browser Multi-Copy (getippte URL, mit Verifikation) ===")
 
     hwnd, title = choose_window()
     print(f"Gewaehltes Fenster: {title}")
 
-    template = build_url_template()
-    print(f"URL-Vorlage: {template}")
+    print_estimate()
 
-    last_page = get_int(
-        f"\nBis zu welcher Seite geht die Paginierung? (Enter = {LAST_PAGE}): ",
-        default=LAST_PAGE,
+    session = connect_supabase()
+
+    print(
+        "\nWaehrend des Laufs bitte weder Maus noch Tastatur benutzen "
+        "(Notaus: Maus in die linke obere Bildschirmecke)."
     )
-    start_page = START_PAGE
-    iterations = last_page - start_page + 1
-    if iterations < 1:
-        print("Die letzte Seite muss mindestens 1 sein.")
-        sys.exit(1)
-    load_delay = LOAD_DELAY
-    round_delay = ROUND_DELAY
-    print(f"Es werden die Seiten {start_page} bis {last_page} kopiert.")
+    if not confirm("Jetzt starten? [j/n]: "):
+        print("Abgebrochen - es wurde nichts kopiert und nichts hochgeladen.")
+        return
 
-    input(
-        "\nAlles bereit. Waehrend des Laufs bitte weder Maus noch Tastatur "
-        "benutzen.\nDruecke Enter um zu starten..."
-    )
+    written_files = []
+    for job in JOBS:
+        captures = []
+        aborted = False
+        try:
+            run_job(hwnd, job, captures)
+        except (KeyboardInterrupt, pyautogui.FailSafeException):
+            aborted = True
+            print("\nAbgebrochen - sichere bisher gesammelte Kopien...")
+        finally:
+            # Erst speichern, dann hochladen: die Datei ist die Sicherung.
+            path = save_captures(captures, job["file_prefix"], job["name"])
+            if path:
+                written_files.append(path)
+            upload_captures(session, job, captures)
+        if aborted:
+            print("Die weiteren Durchlaeufe werden nicht mehr gestartet.")
+            break
 
-    captures = []
-
-    def save_results():
-        if not captures:
-            print("\nKeine Kopien vorhanden, es wird nichts gespeichert.")
-            return
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        out_path = f"browser_copies_{timestamp}.txt"
-        # newline="" verhindert, dass Python die Zeilenenden nochmals umschreibt.
-        # Es werden ausschliesslich die Rohinhalte untereinander geschrieben -
-        # keine Trennzeilen, keine Ueberschriften.
-        with open(out_path, "w", encoding="utf-8", newline="") as handle:
-            for _, content in captures:
-                text = normalize_newlines(content)
-                if not text.endswith("\n"):
-                    text += "\n"
-                handle.write(text.replace("\n", "\r\n"))
-        print(f"\n{len(captures)} Kopie(n) gespeichert in:\n  {out_path}")
+    for path in written_files:
         try:
             import os
 
-            os.startfile(out_path)
+            os.startfile(path)
         except Exception:
             pass
-
-    try:
-        for index in range(iterations):
-            page_number = start_page + index
-            url = template.format(page=page_number)
-            print(f"\n--- Runde {index + 1}/{iterations} | Seite {page_number} ---")
-
-            if not activate_window(hwnd):
-                print(
-                    "Fenster konnte nicht in den Vordergrund geholt werden - "
-                    "Runde uebersprungen (es werden keine Tasten gesendet)."
-                )
-                continue
-
-            if not navigate_to(hwnd, url):
-                print("Navigation fehlgeschlagen - Runde uebersprungen.")
-                continue
-
-            time.sleep(load_delay + random.uniform(0, 1))
-
-            if not is_foreground(hwnd):
-                print("Fokus verloren - Runde uebersprungen.")
-                continue
-
-            pyautogui.hotkey("ctrl", "a")
-            time.sleep(0.3)
-            content = copy_and_wait(hwnd)
-
-            if not content:
-                print("Warnung: Es konnte kein Inhalt kopiert werden.")
-                continue
-
-            if looks_like_search_page(content):
-                print(
-                    "Warnung: Der kopierte Inhalt sieht nach einer "
-                    "Suchergebnisseite aus - er wird VERWORFEN."
-                )
-                continue
-
-            captures.append((page_number, content))
-            preview = content[:80].replace("\n", " ")
-            print(f"Kopiert ({len(content)} Zeichen): {preview}...")
-
-            if index < iterations - 1:
-                time.sleep(round_delay + random.uniform(0, 1))
-    except (KeyboardInterrupt, pyautogui.FailSafeException):
-        print("\nAbgebrochen - sichere bisher gesammelte Kopien...")
-    finally:
-        save_results()
 
 
 if __name__ == "__main__":

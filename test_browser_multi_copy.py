@@ -70,15 +70,41 @@ check(
     not m.looks_like_search_page("Platz\tSpieler\tPunkte\n1\tFoo\t123456"),
 )
 
-# 3) URL-Vorlage aus der fest eingetragenen BASE_URL
-template = m.build_url_template()
+# 3) URL-Vorlage aus den fest eingetragenen Basis-URLs
+template = m.build_url_template(m.BASE_URL_PLAYERS)
 check(
     "Seitenzahl wird korrekt eingesetzt",
     template.format(page=7).endswith("sort=allPoints&page=7"),
 )
 check(
-    "BASE_URL zeigt auf gigrawars-Highscore",
-    "uni5.gigrawars.de" in m.BASE_URL and "highscore" in m.BASE_URL,
+    "Planeten-Vorlage bekommt eigene Seitenzahl",
+    m.build_url_template(m.BASE_URL_PLANETS).format(page=3).endswith("planet?page=3"),
+)
+check(
+    "beide BASE_URLs zeigen auf gigrawars-Highscore",
+    all(
+        "uni5.gigrawars.de" in u and "highscore" in u
+        for u in (m.BASE_URL_PLAYERS, m.BASE_URL_PLANETS)
+    ),
+)
+
+# 3b) Bezier-Verteilung: Grenzen 0..1 muessen eingehalten werden.
+bezier_values = [m.bezier_random() for _ in range(5000)]
+check(
+    "Bezier-Zufallswerte bleiben in den Grenzen 0..1",
+    all(0.0 <= v <= 1.0 for v in bezier_values),
+)
+check(
+    "Bezier-Zufall liefert unterschiedliche Werte",
+    len(set(round(v, 6) for v in bezier_values)) > 100,
+)
+
+# 3c) Beide Durchlaeufe sind konfiguriert und schreiben getrennte Dateien.
+check("zwei Durchlaeufe konfiguriert", len(m.JOBS) == 2)
+check("erst Spieler, dann Planeten", [j["key"] for j in m.JOBS] == ["players", "planets"])
+check(
+    "getrennte Dateinamen je Durchlauf",
+    len({j["file_prefix"] for j in m.JOBS}) == 2,
 )
 
 # 4) Zeilenumbrueche: der reale Bug mit doppeltem Zeilenabstand
@@ -149,6 +175,141 @@ check(
     ctypes.sizeof(m.INPUT) == expected,
 )
 check("KEYBDINPUT passt in die Union", ctypes.sizeof(m.KEYBDINPUT) <= ctypes.sizeof(m.INPUT))
+
+# 6) Supabase-Upload: Parser und Versandlogik (ohne Netzwerk).
+import gw_supabase as sb
+
+PLAYER_SAMPLE = (
+    "Rang\tName\tPlanetenpunkte\tForschungspunkte\tGesamtpunkte\tPlaneten\n"
+    "1\tcapy [Fox-Wing]\t87.971\t18.987\t106.958\t10\n"
+    "2\tvossibaer\t80.000\t10.000\t90.000\t9\n"
+    "2\tvossibaer\t80.000\t10.000\t90.000\t9\n"
+)
+players = sb.parse_player_highscore(PLAYER_SAMPLE)
+check("Spielerzeilen werden erkannt", len(players) == 2)
+check(
+    "Allianz wird aus dem Namen geloest",
+    players[0]["name"] == "capy" and players[0]["alliance"] == "Fox-Wing",
+)
+check("deutsche Zahlen werden umgerechnet", players[0]["total"] == 106958)
+check("Spieler ohne Allianz bekommt None", players[1]["alliance"] is None)
+
+PLANET_SAMPLE = (
+    "Rang\tKoordinate\tBesitzer\tPunkte\n"
+    "1\t10:103:7\tPubsmaus\t10.019\n"
+    "2\t10:73:8\tcapy\t9.648\n"
+)
+planets = sb.parse_planet_highscore(PLANET_SAMPLE)
+check("Planetenzeilen werden erkannt", len(planets) == 2)
+check(
+    "Koordinate wird zerlegt",
+    (planets[0]["galaxy"], planets[0]["system"], planets[0]["position"]) == (10, 103, 7),
+)
+
+# Kopfzeilen und Menuetext duerfen nie als Datenzeile durchgehen.
+check(
+    "Kopf- und Menuezeilen werden ignoriert",
+    sb.parse_planet_highscore("Koordinate\tBesitzer\tPunkte\nCommunity\nHighscore\n") == [],
+)
+
+
+class FakeSession:
+    """Ersetzt die HTTP-Schicht, damit der Versand ohne Netz testbar ist."""
+
+    def __init__(self):
+        self.calls = []
+
+    def rpc(self, function_name, params):
+        self.calls.append((function_name, params))
+        if function_name == "log_snapshot":
+            return 1
+        return {"rows": len(params["rows"]), "changed": len(params["rows"])}
+
+
+fake = FakeSession()
+result = sb.upload(fake, "players", PLAYER_SAMPLE)
+check("Upload meldet die gesendeten Zeilen", result["rows"] == 2)
+check(
+    "Upload nutzt die richtige RPC-Funktion",
+    fake.calls[0][0] == "ingest_players",
+)
+check(
+    "Nutzlast hat die vom Schema erwarteten Schluessel",
+    set(fake.calls[0][1]["rows"][0]) == {
+        "name", "alliance", "rank", "planet", "research", "total", "planets"
+    },
+)
+check(
+    "Import wird genau einmal protokolliert",
+    [c[0] for c in fake.calls].count("log_snapshot") == 1
+    and fake.calls[-1][1]["kind"] == "spieler",
+)
+
+# Grosse Importe muessen in Haeppchen zerlegt werden (Request-Groesse).
+big = "Rang\tKoordinate\tBesitzer\tPunkte\n" + "".join(
+    # Rang wie im Spiel mit deutschem Tausenderpunkt ("1.000").
+    f"{i:,}".replace(",", ".") + f"\t{1 + i // 900}:{i % 900}:{i % 12 + 1}\towner{i}\t{i}\n"
+    for i in range(1, 2501)
+)
+fake_big = FakeSession()
+res_big = sb.upload(fake_big, "planets", big)
+ingest_calls = [c for c in fake_big.calls if c[0] == "ingest_planets"]
+check("2500 Zeilen werden in 3 Haeppchen gesendet", len(ingest_calls) == 3)
+check("kein Haeppchen ist groesser als CHUNK",
+      all(len(c[1]["rows"]) <= sb.CHUNK for c in ingest_calls))
+check("alle Zeilen kommen an", res_big["rows"] == 2500)
+check(
+    "Planeten werden als 'planeten' protokolliert",
+    fake_big.calls[-1][1]["kind"] == "planeten",
+)
+
+# Leere Eingabe darf keinen Request und keinen Protokolleintrag ausloesen.
+fake_empty = FakeSession()
+res_empty = sb.upload(fake_empty, "players", "nur Menuetext ohne Tabelle")
+check("leerer Import sendet nichts", res_empty["rows"] == 0 and not fake_empty.calls)
+
+# Der Parser muss auf den echten Dateien dasselbe liefern wie die Weboberflaeche.
+if os.path.exists(GOOD_CAPTURE):
+    with open(GOOD_CAPTURE, encoding="utf-8") as handle:
+        real_text = handle.read()
+    parsed = sb.parse_player_highscore(real_text) or sb.parse_planet_highscore(real_text)
+    check(f"echte Kopie ({GOOD_CAPTURE}) liefert Datenzeilen", len(parsed) > 0)
+
+
+# 7) Laufzeit-Schaetzung und Startbestaetigung.
+fast, slow = m.estimate_job_seconds(m.JOBS[0])
+check("Schaetzung: 'von' ist kleiner als 'bis'", fast < slow)
+check(
+    "Schaetzung deckt mindestens die festen Pausen ab",
+    fast >= (m.JOBS[0]["last_page"] - m.START_PAGE + 1) * m.LOAD_DELAY,
+)
+check(
+    "Schaetzung waechst mit der Seitenzahl",
+    m.estimate_job_seconds({**m.JOBS[0], "last_page": 100})[0] > fast,
+)
+check(
+    "Schaetzung fuer eine einzelne Seite enthaelt keine Rundenpause",
+    m.estimate_job_seconds({**m.JOBS[0], "last_page": m.START_PAGE})[0]
+    < m.estimate_job_seconds({**m.JOBS[0], "last_page": m.START_PAGE + 1})[0]
+    - m.ROUND_DELAY,
+)
+check("leerer Durchlauf schaetzt 0", m.estimate_job_seconds({**m.JOBS[0], "last_page": 0}) == (0.0, 0.0))
+check("Dauer wird lesbar formatiert", m.format_duration(3725) == "1:02:05 h")
+check("kurze Dauer ohne Stunden", m.format_duration(95) == "1:35 min")
+
+
+import builtins
+
+real_input = builtins.input
+try:
+    for answer in ("j", "ja", "J", "y", "yes"):
+        builtins.input = lambda *_a, _v=answer: _v
+        check(f"Bestaetigung {answer!r} startet den Lauf", m.confirm("?") is True)
+    for answer in ("", "n", "nein", "abbrechen"):
+        builtins.input = lambda *_a, _v=answer: _v
+        check(f"Eingabe {answer!r} bricht ab", m.confirm("?") is False)
+finally:
+    builtins.input = real_input
 
 print()
 if failures:

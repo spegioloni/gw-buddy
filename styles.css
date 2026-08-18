@@ -256,6 +256,66 @@ textarea#inputFarmReports,textarea#inputHighscore{display:block;width:100%;min-h
 .radar-grid>label.switch{flex-direction:row;align-items:center;align-self:center}
 .radar-grid>label b{font-size:12px;color:var(--safe)}
 .radar-grid input[type=range]{accent-color:var(--safe);width:100%}
+/* Badge an einem Radar-Ziel: schon gefarmt (mit Ø je Flug) oder noch neu. */
+.farm-badge{display:inline-flex;align-items:center;gap:6px;grid-column:2;justify-self:start;
+  border:1px solid var(--line);border-radius:999px;padding:2px 9px;margin-top:2px;
+  font:400 11px var(--fontM);color:var(--dim);white-space:nowrap}
+.farm-badge.new{border-color:var(--safe);color:var(--safe)}
+.farm-badge.today{border-color:var(--soon);color:var(--soon)}
+/* Export: Auswahlhaken je Ziel, abgewählte Zeilen treten zurück. */
+.farm-pick{display:block;margin-bottom:4px}
+.farm-pick input{accent-color:var(--safe);width:15px;height:15px;cursor:pointer}
+.farm-row.unpicked{opacity:.45}
+.farm-row.unpicked:hover{opacity:.8}
+/* Farmliste: jedes Ziel ist eine Karte mit den Zahlen, an denen sich
+   entscheidet, ob der Platz seinen Schiffsraum wert ist. */
+.farm-list.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:10px}
+.farm-card{display:flex;flex-direction:column;gap:7px;align-items:flex-start;
+  padding:13px 14px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm)}
+.farm-card:hover{border-color:var(--safe)}
+.farm-card.stale{opacity:.78;border-style:dashed}
+.farm-card.stark{border-left:2px solid var(--safe)}
+.farm-card.schwach,.farm-card.leer,.farm-card.kalt{border-left:2px solid var(--soon)}
+.farm-card.wach{border-left:2px solid var(--threat)}
+.rc-head{display:flex;width:100%;gap:12px;align-items:flex-start;justify-content:space-between}
+.rc-name{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13px;min-width:0}
+.rc-name b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
+.rc-tag{color:var(--dim);font-size:11.5px}
+.rc-day{text-align:right;line-height:1.2;flex:0 0 auto}
+.rc-day b{display:block;font-size:16px;color:var(--safe)}
+.rc-day small{color:var(--dim);font-size:10.5px}
+/* Schnitt aus dem Archiv statt aus eigenen Flügen — gleiche Stelle, blasser. */
+.rc-day.arch b{color:var(--dim)}
+/* Der Auswahlhaken sitzt im Kartenkopf direkt vor der Koordinate. */
+.rc-name .farm-pick{display:inline-flex;align-items:center;margin:0}
+.farm-card.unpicked{opacity:.5}
+.farm-card.unpicked:hover{opacity:.85}
+/* Ziel belegt schon einen Platz (auf irgendeinem Planeten) — nicht doppelt aufnehmen. */
+.farm-card.listed{border-left:2px solid var(--brand)}
+.farm-badge.listed{border-color:var(--brand);color:var(--brand)}
+.farm-card .farm-badge{grid-column:auto;max-width:100%;white-space:normal}
+.roster-context{color:var(--dim);font-size:11px;line-height:1.45}
+.roster-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px 10px;width:100%;
+  border-top:1px solid var(--line);padding-top:8px}
+.rstat{display:flex;flex-direction:column;gap:1px;min-width:0}
+.rstat .k{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.06em}
+.rstat b{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Werte aus dem Archiv statt aus eigenen Flügen: gleiche Felder, blasser. */
+.roster-stats.arch b{color:var(--dim)}
+/* Woraus die Beute besteht — schmaler Streifen, kein eigenes Diagramm. */
+.roster-bar{display:flex;width:100%;height:6px;border-radius:99px;overflow:hidden;background:var(--bg)}
+.roster-bar .rs{display:block;min-width:2px}
+.roster-bar .rs.iron{background:var(--dim)}
+.roster-bar .rs.lutinum{background:var(--brand)}
+.roster-bar .rs.water{background:var(--safe)}
+.roster-bar .rs.hydrogen{background:var(--soon)}
+.roster-barlabel{color:var(--dim);font-size:10.5px;margin-top:-3px}
+.roster-actions{display:flex;gap:6px;justify-content:flex-end;margin-top:auto;width:100%;padding-top:2px}
+.farm-badge.stark{border-color:var(--safe);color:var(--safe)}
+.farm-badge.schwach,.farm-badge.leer,.farm-badge.kalt{border-color:var(--soon);color:var(--soon)}
+.farm-badge.wach{border-color:var(--threat);color:var(--threat)}
+@media (max-width:520px){.roster-stats{grid-template-columns:repeat(2,1fr)}}
+.radar-export .pill{font-size:11px}
 .empty.bad{color:var(--threat)}
 
 /* ---------- Diagramme (Beute-Archiv) ---------- */

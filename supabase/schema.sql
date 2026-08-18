@@ -87,6 +87,37 @@ create table if not exists public.snapshots (
   changed_count int
 );
 
+-- Die aktiv beflogene Farmliste je eigenem Planeten. Die Schiffszahl ist
+-- begrenzt: ein Planet bedient nur eine Handvoll Ziele, und wer nichts mehr
+-- abwirft, muss einem besseren Ziel weichen. Genau diese Belegung steht
+-- hier — inklusive der abgelegten Ziele, damit man nicht im Kreis läuft
+-- und dieselbe taube Farm nächste Woche erneut aufnimmt.
+create table if not exists public.farm_roster (
+  id            bigserial primary key,
+  origin        text not null,   -- eigener Planet, von dem geflogen wird
+  target        text not null,   -- Farmkoordinate
+  target_player text,
+  slot_note     text,            -- freie Notiz ("Deuterium", "nur nachts")
+  active        boolean not null default true,
+  added_at      timestamptz not null default now(),
+  removed_at    timestamptz,
+  drop_reason   text,
+  unique (origin, target),
+  constraint farm_roster_origin_fmt check (origin ~ '^[0-9]+:[0-9]+:[0-9]+$'),
+  constraint farm_roster_target_fmt check (target ~ '^[0-9]+:[0-9]+:[0-9]+$')
+);
+create index if not exists farm_roster_origin_idx on public.farm_roster (origin) where active;
+
+-- Kapazität eines eigenen Planeten: so viele Farmen kann die dort
+-- stationierte Flotte in einer Runde bedienen.
+create table if not exists public.farm_slots (
+  origin     text primary key,
+  slots      int not null default 8 check (slots between 0 and 200),
+  note       text,
+  updated_at timestamptz not null default now(),
+  constraint farm_slots_origin_fmt check (origin ~ '^[0-9]+:[0-9]+:[0-9]+$')
+);
+
 -- Nachträglich erweiterbar, ohne die Tabelle neu anzulegen.
 alter table public.snapshots drop constraint if exists snapshots_kind_check;
 alter table public.snapshots add constraint snapshots_kind_check
@@ -96,6 +127,18 @@ alter table public.snapshots add constraint snapshots_kind_check
 
 -- security_invoker: die View rechnet mit den Rechten des Aufrufers, damit
 -- Row Level Security der Basistabellen auch hier greift.
+
+-- Vor dem Neuanlegen werden die Views verworfen. Grund: 'create or replace
+-- view' darf Spalten nur HINTEN anhaengen — Umbenennen oder Umsortieren
+-- scheitert mit 'ERROR 42P16: cannot change name of view column'. Genau das
+-- passiert, sobald hier eine Spalte in der Mitte dazukommt. Views halten
+-- keine Daten, das Verwerfen ist gefahrlos; die Rechte werden am Ende der
+-- Datei ohnehin neu vergeben.
+drop view if exists public.inactive_farms;
+drop view if exists public.player_history_named;
+drop view if exists public.farm_loot_daily;
+drop view if exists public.farm_loot_targets;
+drop view if exists public.farm_roster_stats;
 
 create or replace view public.inactive_farms
 with (security_invoker = on) as
@@ -111,7 +154,17 @@ select
   p.alliance,
   p.planet_count,
   p.last_seen_at as player_last_seen_at,
-  pl.last_seen_at as planet_last_seen_at
+  pl.last_seen_at as planet_last_seen_at,
+  -- Stundengenaue Variante derselben Werte: unter 24 h stehen die Tage noch
+  -- auf 0, die Stunden zeigen die Inaktivitaet aber bereits an.
+  floor(extract(epoch from now() - pl.points_unchanged_since) / 3600)::int as planet_idle_hours,
+  floor(extract(epoch from now() - coalesce(p.points_unchanged_since, pl.points_unchanged_since)) / 3600)::int as player_idle_hours,
+  -- Ist die Inaktivität belegt? Beim allerersten Import bekommt jeder Spieler
+  -- `points_unchanged_since = now()` — das sieht aus wie „gerade eben aktiv",
+  -- ist aber nur der Startpunkt der Beobachtung. Erst wenn danach einmal eine
+  -- Punkteänderung gesehen wurde, sagt die Uhr etwas über den Spieler aus.
+  (coalesce(p.points_unchanged_since, pl.points_unchanged_since)
+     > coalesce(p.first_seen_at, pl.first_seen_at)) as idle_confirmed
 from public.planets pl
 left join public.players p on p.name = pl.owner_name;
 
@@ -164,6 +217,89 @@ select
   (array_agg(hydrogen order by attacked_at desc))[1]::bigint as last_hydrogen
 from public.farm_reports
 group by target;
+
+-- Die Farmliste mit allem, was für ein Austauschen nötig ist: was das Ziel
+-- seit der Aufnahme wirklich abgeworfen hat (nur Angriffe von genau diesem
+-- Planeten), wie lange es her ist, und ob das Ziel überhaupt noch schläft.
+-- `per_day` ist der Maßstab für den Vergleich: Gesamtbeute geteilt durch die
+-- Tage in der Liste — eine Farm, die man seit 20 Tagen mitschleppt und
+-- dreimal angeflogen hat, sieht damit schlechter aus als eine frische.
+create or replace view public.farm_roster_stats
+with (security_invoker = on) as
+select
+  r.origin,
+  r.target,
+  coalesce(pl.owner_name, r.target_player)                as target_player,
+  r.slot_note,
+  r.active,
+  r.added_at,
+  r.removed_at,
+  r.drop_reason,
+  coalesce(s.reports, 0)                                  as reports,
+  coalesce(s.total, 0)::bigint                            as total,
+  coalesce(s.avg_total, 0)::bigint                        as avg_total,
+  coalesce(s.best_total, 0)::bigint                       as best_total,
+  coalesce(s.last_total, 0)::bigint                       as last_total,
+  coalesce(s.iron, 0)::bigint                             as iron,
+  coalesce(s.lutinum, 0)::bigint                          as lutinum,
+  coalesce(s.water, 0)::bigint                            as water,
+  coalesce(s.hydrogen, 0)::bigint                         as hydrogen,
+  s.first_at,
+  s.last_at,
+  floor(extract(epoch from now() - r.added_at) / 86400)::int as days_listed,
+  round(coalesce(s.total, 0)
+    / greatest(1, extract(epoch from now() - r.added_at) / 86400))::bigint as per_day,
+  case when s.last_at is null then null
+       else floor(extract(epoch from now() - s.last_at) / 3600)::int end   as hours_since_last,
+  -- Was das Ziel jemals gebracht hat, egal von welchem Planeten und egal,
+  -- wie oft es schon auf einer Liste stand. Das ist der ehrliche Blick auf
+  -- eine Farm, die man gerade erst (wieder) aufgenommen hat.
+  coalesce(l.reports, 0)                                  as life_reports,
+  coalesce(l.total, 0)::bigint                            as life_total,
+  coalesce(l.avg_total, 0)::bigint                        as life_avg,
+  coalesce(l.best_total, 0)::bigint                       as life_best,
+  coalesce(l.last_total, 0)::bigint                       as life_last,
+  l.last_at                                               as life_last_at,
+  pl.points                                               as planet_points,
+  floor(extract(epoch from now() - coalesce(p.points_unchanged_since, pl.points_unchanged_since)) / 3600)::int as player_idle_hours,
+  (coalesce(p.points_unchanged_since, pl.points_unchanged_since)
+     > coalesce(p.first_seen_at, pl.first_seen_at)) as idle_confirmed,
+  floor(extract(epoch from now() - pl.points_unchanged_since) / 3600)::int as planet_idle_hours,
+  p.total_points,
+  p.planet_count,
+  p.alliance
+from public.farm_roster r
+left join public.planets pl
+  on pl.galaxy = split_part(r.target, ':', 1)::int
+ and pl.system = split_part(r.target, ':', 2)::int
+ and pl."position" = split_part(r.target, ':', 3)::int
+left join public.players p on p.name = pl.owner_name
+left join lateral (
+  select count(*)::int            as reports,
+         sum(fr.total)            as total,
+         round(avg(fr.total))     as avg_total,
+         max(fr.total)            as best_total,
+         (array_agg(fr.total order by fr.attacked_at desc))[1] as last_total,
+         sum(fr.iron)             as iron,
+         sum(fr.lutinum)          as lutinum,
+         sum(fr.water)            as water,
+         sum(fr.hydrogen)         as hydrogen,
+         min(fr.attacked_at)      as first_at,
+         max(fr.attacked_at)      as last_at
+  from public.farm_reports fr
+  where fr.origin = r.origin and fr.target = r.target
+    and fr.attacked_at >= r.added_at
+) s on true
+left join lateral (
+  select count(*)::int        as reports,
+         sum(fr.total)        as total,
+         round(avg(fr.total)) as avg_total,
+         max(fr.total)        as best_total,
+         (array_agg(fr.total order by fr.attacked_at desc))[1] as last_total,
+         max(fr.attacked_at)  as last_at
+  from public.farm_reports fr
+  where fr.target = r.target
+) l on true;
 
 -- ======================================================== RPC: Import ====
 
@@ -366,6 +502,135 @@ begin
 end;
 $$;
 
+-- ================================================ RPC: Farmverwaltung ====
+
+-- Ziele in die Farmliste eines Planeten aufnehmen. Ein bereits abgelegtes
+-- Ziel wird wiederbelebt und bekommt dabei ein neues `added_at` — die
+-- Ertragsrechnung beginnt damit von vorn und misst nicht die Flaute aus der
+-- Zeit, in der das Ziel gar nicht angeflogen wurde.
+create or replace function public.roster_add(rows jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_total int := 0;
+  v_new   int := 0;
+begin
+  select count(*) into v_total from jsonb_array_elements(rows);
+
+  with src as (
+    select distinct on (origin, target) *
+    from (
+      select nullif(btrim(r->>'origin'), '') as origin,
+             nullif(btrim(r->>'target'), '') as target,
+             nullif(btrim(r->>'player'), '') as target_player,
+             nullif(btrim(r->>'note'), '')   as slot_note
+      from jsonb_array_elements(rows) r
+    ) t
+    where origin ~ '^[0-9]+:[0-9]+:[0-9]+$'
+      and target ~ '^[0-9]+:[0-9]+:[0-9]+$'
+    order by origin, target
+  ),
+  ups as (
+    insert into farm_roster as f (origin, target, target_player, slot_note)
+    select origin, target, target_player, slot_note from src
+    on conflict (origin, target) do update set
+      target_player = coalesce(excluded.target_player, f.target_player),
+      slot_note     = coalesce(excluded.slot_note, f.slot_note),
+      -- Nur ein echtes Comeback setzt die Uhr zurück; ein doppelter Klick
+      -- auf ein aktives Ziel darf die Statistik nicht löschen.
+      added_at      = case when f.active then f.added_at else now() end,
+      removed_at    = case when f.active then f.removed_at else null end,
+      drop_reason   = case when f.active then f.drop_reason else null end,
+      active        = true
+    returning (xmax = 0) as inserted
+  )
+  select count(*) filter (where inserted) into v_new from ups;
+
+  return jsonb_build_object('rows', v_total, 'changed', v_new);
+end;
+$$;
+
+-- Ziele aus der Liste nehmen. Die Zeile bleibt stehen (mit Grund und
+-- Zeitpunkt), damit die Historie erhalten bleibt.
+create or replace function public.roster_remove(rows jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_total int := 0;
+  v_hit   int := 0;
+begin
+  select count(*) into v_total from jsonb_array_elements(rows);
+
+  with src as (
+    select nullif(btrim(r->>'origin'), '') as origin,
+           nullif(btrim(r->>'target'), '') as target,
+           nullif(btrim(r->>'reason'), '') as drop_reason
+    from jsonb_array_elements(rows) r
+  ),
+  upd as (
+    update farm_roster f set
+      active      = false,
+      removed_at  = now(),
+      drop_reason = coalesce(s.drop_reason, f.drop_reason)
+    from src s
+    where f.origin = s.origin and f.target = s.target and f.active
+    returning 1
+  )
+  select count(*) into v_hit from upd;
+
+  return jsonb_build_object('rows', v_total, 'changed', v_hit);
+end;
+$$;
+
+-- Endgültig vergessen (nur für Fehleingaben gedacht).
+create or replace function public.roster_forget(rows jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare v_hit int := 0;
+begin
+  with src as (
+    select nullif(btrim(r->>'origin'), '') as origin,
+           nullif(btrim(r->>'target'), '') as target
+    from jsonb_array_elements(rows) r
+  ),
+  del as (
+    delete from farm_roster f using src s
+    where f.origin = s.origin and f.target = s.target
+    returning 1
+  )
+  select count(*) into v_hit from del;
+  return jsonb_build_object('rows', v_hit, 'changed', v_hit);
+end;
+$$;
+
+-- Wie viele Farmen die Flotte dieses Planeten bedienen kann. Die Parameter
+-- tragen ein Präfix, sonst hält Postgres `origin` für die Tabellenspalte.
+create or replace function public.roster_set_slots(p_origin text, p_slots int, p_note text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into farm_slots as f (origin, slots, note, updated_at)
+  values (p_origin, p_slots, p_note, now())
+  on conflict (origin) do update set
+    slots = excluded.slots,
+    note = coalesce(excluded.note, f.note),
+    updated_at = now();
+  return jsonb_build_object('origin', p_origin, 'slots', p_slots);
+end;
+$$;
+
 -- ================================================ Row Level Security ====
 
 alter table public.players        enable row level security;
@@ -374,6 +639,8 @@ alter table public.player_history enable row level security;
 alter table public.planet_history enable row level security;
 alter table public.snapshots      enable row level security;
 alter table public.farm_reports   enable row level security;
+alter table public.farm_roster    enable row level security;
+alter table public.farm_slots     enable row level security;
 
 -- Lesen nur für eingeloggte Nutzer. Schreiben hat *keine* Policy und ist
 -- damit für jeden Client gesperrt — Importe laufen ausschließlich über die
@@ -381,7 +648,7 @@ alter table public.farm_reports   enable row level security;
 do $$
 declare t text;
 begin
-  foreach t in array array['players','planets','player_history','planet_history','snapshots','farm_reports'] loop
+  foreach t in array array['players','planets','player_history','planet_history','snapshots','farm_reports','farm_roster','farm_slots'] loop
     execute format('drop policy if exists "read for authenticated" on public.%I', t);
     execute format('create policy "read for authenticated" on public.%I for select to authenticated using (true)', t);
   end loop;
@@ -390,14 +657,18 @@ end $$;
 -- Anonyme Besucher bekommen nichts — auch nicht über die Views.
 revoke all on public.players, public.planets, public.player_history,
               public.planet_history, public.snapshots, public.farm_reports,
+              public.farm_roster, public.farm_slots,
               public.inactive_farms, public.player_history_named,
-              public.farm_loot_daily, public.farm_loot_targets
+              public.farm_loot_daily, public.farm_loot_targets,
+              public.farm_roster_stats
   from anon;
 
 grant select on public.players, public.planets, public.player_history,
                 public.planet_history, public.snapshots, public.farm_reports,
+                public.farm_roster, public.farm_slots,
                 public.inactive_farms, public.player_history_named,
-                public.farm_loot_daily, public.farm_loot_targets
+                public.farm_loot_daily, public.farm_loot_targets,
+                public.farm_roster_stats
   to authenticated;
 
 revoke execute on function public.ingest_players(jsonb) from public, anon;
@@ -408,3 +679,12 @@ grant  execute on function public.ingest_players(jsonb) to authenticated;
 grant  execute on function public.ingest_planets(jsonb) to authenticated;
 grant  execute on function public.ingest_farm_reports(jsonb) to authenticated;
 grant  execute on function public.log_snapshot(text, int, int) to authenticated;
+
+revoke execute on function public.roster_add(jsonb)      from public, anon;
+revoke execute on function public.roster_remove(jsonb)   from public, anon;
+revoke execute on function public.roster_forget(jsonb)   from public, anon;
+revoke execute on function public.roster_set_slots(text,int,text) from public, anon;
+grant  execute on function public.roster_add(jsonb)      to authenticated;
+grant  execute on function public.roster_remove(jsonb)   to authenticated;
+grant  execute on function public.roster_forget(jsonb)   to authenticated;
+grant  execute on function public.roster_set_slots(text,int,text) to authenticated;

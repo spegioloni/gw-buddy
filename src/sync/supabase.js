@@ -148,12 +148,12 @@ export function pushFarmReports(rows) {
 /**
  * Inaktive Ziele holen. Vorfilterung passiert serverseitig, damit nie die
  * ganze Tabelle über die Leitung geht.
- * @param opts {idleDays, galaxies:number[], systemFrom, systemTo, maxPoints}
+ * @param opts {idleHours, galaxies:number[], systemFrom, systemTo, maxPoints}
  */
 export async function fetchFarms(opts = {}) {
   const sb = await getClient();
   let q = sb.from('inactive_farms').select('*').limit(2000);
-  if (opts.idleDays != null) q = q.gte('player_idle_days', opts.idleDays);
+  if (opts.idleHours != null) q = q.gte('player_idle_hours', opts.idleHours);
   if (opts.galaxies?.length) q = q.in('galaxy', opts.galaxies);
   if (opts.systemFrom != null) q = q.gte('system', opts.systemFrom);
   if (opts.systemTo != null) q = q.lte('system', opts.systemTo);
@@ -203,4 +203,47 @@ export async function fetchLootTargets(limit = 500) {
     .select('*').order('total', { ascending: false }).limit(limit);
   if (error) throw new Error(error.message);
   return data || [];
+}
+
+/* ---------- Farmliste (aktiv verwaltete Ziele) ---------- */
+
+/** Die gepflegten Farmlisten samt Ertrag — aktive und abgelegte Ziele. */
+export async function fetchRoster(limit = 2000) {
+  const sb = await getClient();
+  const { data, error } = await sb.from('farm_roster_stats')
+    .select('*').order('origin', { ascending: true })
+    .order('per_day', { ascending: false }).limit(limit);
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
+/** Kapazität (Farmplätze) je eigenem Planeten. */
+export async function fetchSlots() {
+  const sb = await getClient();
+  const { data, error } = await sb.from('farm_slots').select('*').limit(200);
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
+async function rosterRpc(fn, rows) {
+  const sb = await getClient();
+  const { data, error } = await sb.rpc(fn, { rows });
+  if (error) throw new Error(error.message);
+  return { rows: data?.rows ?? 0, changed: data?.changed ?? 0 };
+}
+
+/** @param rows [{origin, target, player?, note?}] */
+export const rosterAdd = (rows) => rosterRpc('roster_add', rows);
+/** @param rows [{origin, target, reason?}] */
+export const rosterRemove = (rows) => rosterRpc('roster_remove', rows);
+/** @param rows [{origin, target}] — löscht auch die Historie. */
+export const rosterForget = (rows) => rosterRpc('roster_forget', rows);
+
+export async function rosterSetSlots(origin, slots, note = null) {
+  const sb = await getClient();
+  const { error } = await sb.rpc('roster_set_slots', {
+    p_origin: origin, p_slots: slots, p_note: note,
+  });
+  if (error) throw new Error(error.message);
+  return { origin, slots };
 }

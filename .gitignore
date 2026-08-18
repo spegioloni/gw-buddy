@@ -10,4 +10,6 @@ shot-*.png
 
 # Rohe Spielstands-Pastes (enthalten Kontodaten)
 browser_copies_*.txt
+highscore_player_*.txt
+highscore_planet_*.txt
 __pycache__/

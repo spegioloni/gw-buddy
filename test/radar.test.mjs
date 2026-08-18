@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { detectType } from '../src/parse/detect.js';
 import { parsePlayerHighscore, parsePlanetHighscore, splitPlayerName } from '../src/parse/highscore.js';
-import { distance, nearestOwn, rankFarms, coordParts } from '../src/radar.js';
+import { distance, nearestOwn, rankFarms, coordParts, formatIdle, attackIndex, dayStart, farmExportPairs, farmExportName } from '../src/radar.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const read = (f) => readFileSync(path.join(ROOT, 'fixtures', f), 'utf8');
@@ -59,26 +59,62 @@ ok(distance('12:101:5', '13:101:5') === 150, 'Galaxiesprung, got ' + distance('1
 ok(nearestOwn('12:110:1', ['12:101:5', '12:108:2']).coord === '12:108:2', 'nächster eigener Planet');
 
 // ---------- Bewertung ----------
+// Zwei Zeilen tragen nur Tage (alte View), zwei die feineren Stunden.
 const rows = [
-  { owner_name: 'Schlaefer', galaxy: 12, system: 104, position: 3, points: 2000, player_idle_days: 9, planet_idle_days: 9, total_points: 5000 },
-  { owner_name: 'Aktiv', galaxy: 12, system: 102, position: 1, points: 9000, player_idle_days: 0, planet_idle_days: 0, total_points: 90000 },
-  { owner_name: 'WeitWeg', galaxy: 12, system: 140, position: 4, points: 4000, player_idle_days: 20, planet_idle_days: 20, total_points: 4000 },
-  { owner_name: 'AndereGalaxie', galaxy: 3, system: 101, position: 2, points: 8000, player_idle_days: 20, planet_idle_days: 20, total_points: 4000 },
+  { owner_name: 'Schlaefer', galaxy: 12, system: 104, position: 3, points: 2000, player_idle_days: 9, player_idle_hours: 216, total_points: 5000 },
+  { owner_name: 'Aktiv', galaxy: 12, system: 102, position: 1, points: 9000, player_idle_days: 0, player_idle_hours: 0, total_points: 90000 },
+  { owner_name: 'WeitWeg', galaxy: 12, system: 140, position: 4, points: 4000, player_idle_days: 20, total_points: 4000 },
+  { owner_name: 'AndereGalaxie', galaxy: 3, system: 101, position: 2, points: 8000, player_idle_days: 20, total_points: 4000 },
 ];
-const opts = { own: ['12:101:5'], idleDays: 3, maxSystems: 20, sameGalaxyOnly: true };
+const opts = { own: ['12:101:5'], idleHours: 72, maxSystems: 20, sameGalaxyOnly: true };
 const ranked = rankFarms(rows, opts);
 ok(ranked.length === 1, 'nur der erreichbare Schläfer bleibt, got ' + ranked.length);
 ok(ranked[0].owner_name === 'Schlaefer', 'richtiger Kandidat, got ' + ranked[0].owner_name);
 ok(ranked[0].systemGap === 3, 'systemGap 3, got ' + ranked[0].systemGap);
 ok(ranked[0].nearestOwn === '12:101:5', 'nearestOwn, got ' + ranked[0].nearestOwn);
+ok(ranked[0].idleHours === 216 && ranked[0].idleDays === 9, 'Stunden und Tage im Ergebnis');
 ok(ranked[0].score > 0, 'score gesetzt');
 
 ok(rankFarms(rows, { ...opts, maxSystems: 60 }).length === 2, 'größerer Umkreis holt WeitWeg dazu');
 ok(rankFarms(rows, { ...opts, maxSystems: 200, sameGalaxyOnly: false }).length === 2,
   'ohne Galaxiefilter bleibt die andere Galaxie zu weit weg (150 Gewicht)');
-ok(rankFarms(rows, { ...opts, idleDays: 15 }).length === 0, 'höhere Schwelle filtert');
+ok(rankFarms(rows, { ...opts, idleHours: 360 }).length === 0, 'höhere Schwelle filtert');
 ok(rankFarms(rows, { ...opts, maxPoints: 4000 }).length === 0, 'Punktedeckel filtert');
 ok(rankFarms(rows, { ...opts, own: [] }).length === 0, 'ohne Bezugspunkt kein Ergebnis');
+
+// Eigene Planeten sind keine Farmen — weder die bekannten Koordinaten noch
+// eine Kolonie desselben Spielers, die noch nicht in der Übersicht steht.
+const eigene = [
+  { owner_name: 'Ich', galaxy: 12, system: 101, position: 5, points: 6000, player_idle_hours: 200, total_points: 30000 },
+  { owner_name: 'Ich', galaxy: 12, system: 103, position: 2, points: 3000, player_idle_hours: 200, total_points: 30000 },
+  ...rows,
+];
+const ohneEigene = rankFarms(eigene, { ...opts, mine: ['12:101:5'] });
+ok(!ohneEigene.some((r) => r.owner_name === 'Ich'), 'eigene Planeten fallen raus: '
+  + JSON.stringify(ohneEigene.map((r) => r.coord)));
+ok(ohneEigene.length === 1, 'die Farm bleibt, got ' + ohneEigene.length);
+ok(rankFarms(eigene, { ...opts, mine: ['12:101:5'], own: ['12:101:5'] })
+  .every((r) => r.coord !== '12:101:5'), 'der Bezugspunkt taucht nie als Ziel auf');
+// Ohne eigene Liste bleibt der Bezugspunkt selbst trotzdem draußen.
+ok(rankFarms(eigene, opts).every((r) => r.coord !== '12:101:5'), 'own dient als Rückfallebene für mine');
+
+// Zeilen ohne Stundenspalte (noch nicht aktualisierte View) zählen als Tage×24.
+ok(rankFarms([{ owner_name: 'NurTage', galaxy: 12, system: 102, position: 1, points: 100, player_idle_days: 2 }],
+  { ...opts, idleHours: 48 }).length === 1, 'Tage dienen als Rückfallebene');
+
+// Der eigentliche Zweck der Stunden: frische Importe testbar machen.
+const frisch = [
+  { owner_name: 'Frisch', galaxy: 12, system: 102, position: 1, points: 500, player_idle_hours: 21, player_idle_days: 0, total_points: 500 },
+];
+ok(rankFarms(frisch, { ...opts, idleHours: 72 }).length === 0, '21 h reichen für 3 Tage nicht');
+ok(rankFarms(frisch, { ...opts, idleHours: 6 }).length === 1, 'mit 6-Stunden-Schwelle sichtbar');
+ok(rankFarms(frisch, { ...opts, idleHours: 24 }).length === 0, '24-Stunden-Schwelle greift genau');
+
+// Lesbare Darstellung der Schwelle.
+ok(formatIdle(6) === '6 h', 'Stunden, got ' + formatIdle(6));
+ok(formatIdle(47) === '47 h', 'unter zwei Tagen bleibt es bei Stunden, got ' + formatIdle(47));
+ok(formatIdle(72) === '3 T', 'volle Tage ohne Rest, got ' + formatIdle(72));
+ok(formatIdle(75) === '3 T 3 h', 'Tage plus Rest, got ' + formatIdle(75));
 
 // Nähere und größere Ziele stehen oben.
 const two = rankFarms([
@@ -86,6 +122,67 @@ const two = rankFarms([
   { owner_name: 'Fern', galaxy: 12, system: 118, position: 1, points: 2000, player_idle_days: 5, total_points: 2000 },
 ], opts);
 ok(two[0].owner_name === 'Nah', 'näheres Ziel zuerst');
+
+// ---------- Bereits gefarmte Ziele ----------
+const jetzt = new Date(2024, 4, 10, 14, 0, 0);
+const heuteFrueh = new Date(2024, 4, 10, 6, 30, 0).toISOString();
+const gestern = new Date(2024, 4, 9, 22, 0, 0).toISOString();
+
+ok(dayStart(jetzt) === new Date(2024, 4, 10).getTime(), 'dayStart trifft lokale Mitternacht');
+
+const idx = attackIndex([
+  { target: '12:104:3', reports: 4, total: 180000, avg_total: 45000, last_at: heuteFrueh },
+  { target: '12:105:1', reports: 3, total: 90000, last_at: gestern },   // alt: ohne avg_total
+  { target: 'kaputt', reports: 9, total: 9 },
+]);
+ok(idx.size === 2, 'unbrauchbare Koordinate fliegt raus, got ' + idx.size);
+ok(idx.get('12:104:3').avg === 45000, 'avg_total wird übernommen');
+ok(idx.get('12:105:1').avg === 30000, 'ohne avg_total wird total/reports gerechnet, got ' + idx.get('12:105:1').avg);
+ok(idx.get('12:105:1').lastAt === Date.parse(gestern), 'last_at als Zeitstempel');
+
+const bekannt = rankFarms(rows, { ...opts, attacks: idx, now: jetzt });
+ok(bekannt.length === 1 && bekannt[0].attack.reports === 4, 'Angriffsdaten hängen am Ergebnis');
+ok(bekannt[0].attackedToday === true, 'heute angeflogen wird erkannt');
+
+ok(rankFarms(rows, { ...opts, attacks: idx, onlyUntouched: true, now: jetzt }).length === 0,
+  '„nur nie angegriffene" blendet die bekannte Farm aus');
+ok(rankFarms(rows, { ...opts, attacks: idx, notToday: true, now: jetzt }).length === 0,
+  '„heute noch nicht angeflogen" blendet die heutige Farm aus');
+
+// Gestern angeflogen: von notToday unberührt, von onlyUntouched aber schon.
+const gesternIdx = attackIndex([{ target: '12:104:3', reports: 2, total: 100, last_at: gestern }]);
+const gesternRanked = rankFarms(rows, { ...opts, attacks: gesternIdx, notToday: true, now: jetzt });
+ok(gesternRanked.length === 1 && gesternRanked[0].attackedToday === false,
+  'gestern angeflogen bleibt bei notToday sichtbar');
+ok(rankFarms(rows, { ...opts, attacks: gesternIdx, onlyUntouched: true, now: jetzt }).length === 0,
+  'onlyUntouched greift unabhängig vom Tag');
+
+// Ohne Archiv verhält sich alles wie zuvor.
+const ohne = rankFarms(rows, { ...opts, onlyUntouched: true, notToday: true, now: jetzt });
+ok(ohne.length === 1 && ohne[0].attack === null, 'ohne Archiv bleiben alle Ziele „neu"');
+
+// ---------- Export der Farmenliste ----------
+const expo = farmExportPairs([
+  { coord: '12:105:6', owner_name: '' },
+  { galaxy: 12, system: 68, position: 5, owner_name: 'Manor' },
+  { coord: '12:102:7', owner_name: 'Boyaa' },
+  { coord: '12:102:7', owner_name: 'Booyaa' },
+  { coord: '12:68:5', owner_name: 'Manor' },          // Dublette
+  { coord: 'kaputt', owner_name: 'Nix' },
+  { coord: '12:68:7', owner_name: 'Necrom' },
+]);
+ok(JSON.stringify(expo) === JSON.stringify([
+  ['12:68:5', 'Manor'], ['12:68:7', 'Necrom'],
+  ['12:102:7', 'Booyaa'], ['12:102:7', 'Boyaa'], ['12:105:6', ''],
+]), 'Exportpaare sortiert und entdoppelt, got ' + JSON.stringify(expo));
+ok(farmExportPairs([{ target: '12:99:3', target_player: 'Psytasche' }])[0][1] === 'Psytasche',
+  'Archivzeilen (target/target_player) taugen auch als Quelle');
+ok(farmExportPairs(null).length === 0, 'ohne Zeilen leeres Ergebnis');
+
+const stamp = new Date(2026, 7, 18);
+ok(farmExportName('', stamp) === 'Farmen-18-08-2026.json', 'Dateiname, got ' + farmExportName('', stamp));
+ok(farmExportName('12:101:5', stamp) === 'Farmen-12_101_5-18-08-2026.json',
+  'Dateiname je Planet, got ' + farmExportName('12:101:5', stamp));
 
 console.log(`\n${pass} ok, ${fail} fehlgeschlagen`);
 process.exit(fail ? 1 : 0);

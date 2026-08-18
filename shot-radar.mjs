@@ -39,8 +39,8 @@ await page.evaluate(() => {
   window.__gw.render();
 });
 console.log('eingeloggt:', await headings());
-console.log('Zielzeilen:', await page.locator('.farm-row').count());
-console.log('Bestes Ziel:', (await page.locator('.farm-row').first().innerText()).replace(/\n/g, ' | '));
+console.log('Zielkarten:', await page.locator('.farm-card').count());
+console.log('Bestes Ziel:', (await page.locator('.farm-card').first().innerText()).replace(/\n/g, ' | '));
 await page.screenshot({ path: 'shot-radar.png', fullPage: true });
 
 // Der eingefügte Text muss ein Re-Render überleben — daran ist der
@@ -61,8 +61,8 @@ if (/Bitte zuerst eine Highscore-Liste/.test(pushMsg)) errors.push('Paste ging b
 
 // Regler: Wert muss gespeichert werden und die Liste filtern.
 await page.evaluate(() => {
-  const el = document.querySelector('[data-radar="idleDays"]');
-  el.value = '7';
+  const el = document.querySelector('[data-radar="idleHours"]');
+  el.value = '168';
   el.dispatchEvent(new Event('change', { bubbles: true }));
 });
 await page.waitForTimeout(200);

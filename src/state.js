@@ -46,6 +46,18 @@ export const state = {
     error: null,
     notice: null,
     editCfg: false,      // Konfigurationsformular sichtbar?
+    unpicked: new Set(), // vom Export abgewählte Ziele (Koordinaten)
+    showAll: false,      // Zielliste vollständig zeigen statt nur der Spitze
+  },
+  roster: {              // Farmliste (Supabase) — nur Laufzeitzustand
+    rows: [],            // Zeilen aus der View `farm_roster_stats`
+    slots: [],           // Zeilen aus `farm_slots`
+    origin: '',          // gerade betrachteter eigener Planet
+    loadedAt: null,
+    busy: null,          // 'load' | 'save' | null
+    error: null,
+    notice: null,
+    showDropped: false,  // Archiv der abgelegten Ziele aufgeklappt?
   },
   loot: {                // Beute-Archiv (Supabase) — nur Laufzeitzustand
     rows: [],            // Zeilen aus der View `farm_loot_daily`
@@ -62,18 +74,35 @@ export const state = {
 
 /** Voreinstellungen des Farmradars (überschreibbar per UI, in localStorage). */
 export const RADAR_DEFAULTS = {
-  idleDays: 3,
+  idleHours: 72,         // Schwelle in Stunden (72 h = die früheren 3 Tage)
   maxSystems: 20,
   sameGalaxyOnly: true,
   maxPoints: null,
+  onlyUntouched: false,  // nur Ziele, die noch nie im Beute-Archiv standen
+  notToday: false,       // heute bereits angeflogene Ziele ausblenden
   email: '',
-  center: '',            // optionaler Bezugspunkt, falls keine Gesamtübersicht da ist
+  center: '',            // '' = alle eigenen Planeten als Bezugspunkt
 };
+
+/**
+ * Gespeicherte Einstellungen lesen. Ältere Stände haben noch `idleDays` —
+ * der Wert wird einmalig in Stunden umgerechnet, damit niemand seine
+ * Filtereinstellung verliert.
+ */
+function readRadar() {
+  const raw = LS.get('radar', {}) || {};
+  const cfg = { ...RADAR_DEFAULTS, ...raw };
+  if (raw.idleHours == null && raw.idleDays != null) {
+    cfg.idleHours = Math.max(1, Math.round(Number(raw.idleDays) * 24));
+  }
+  delete cfg.idleDays;
+  return cfg;
+}
 
 export const serverNow = () => Date.now() + state.serverOffset;
 
 export function loadPersisted() {
-  state.radar.settings = { ...RADAR_DEFAULTS, ...LS.get('radar', {}) };
+  state.radar.settings = readRadar();
   state.gesamtText = LS.get('gesamtText', '');
   state.uebersichtText = LS.get('uebersichtText', '');
   state.htmlText = LS.get('htmlText', '');
@@ -377,9 +406,9 @@ export const persist = { setAlarm: (v) => LS.set('alarm', v), getAlarm: () => LS
     else targets[id] = value;
     LS.set('forecastTargets', targets);
   },
-  getRadar: () => ({ ...RADAR_DEFAULTS, ...LS.get('radar', {}) }),
+  getRadar: () => readRadar(),
   setRadar: (patch) => {
-    const next = { ...RADAR_DEFAULTS, ...LS.get('radar', {}), ...patch };
+    const next = { ...readRadar(), ...patch };
     LS.set('radar', next);
     state.radar.settings = next;
     return next;

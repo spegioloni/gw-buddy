@@ -85,10 +85,30 @@ r = await db.query("select * from inactive_farms where owner_name = 'capy'");
 ok(r.rows.length === 1, 'View liefert den Planeten von capy');
 ok(r.rows[0].planet_idle_days === 6, 'planet_idle_days 6, got ' + r.rows[0].planet_idle_days);
 ok(r.rows[0].player_idle_days === 0, 'player_idle_days von capy 0, got ' + r.rows[0].player_idle_days);
+ok(r.rows[0].planet_idle_hours === 144, 'planet_idle_hours 144, got ' + r.rows[0].planet_idle_hours);
 ok(r.rows[0].total_points === 1200n || Number(r.rows[0].total_points) === 1200, 'total_points aus players verknüpft');
+
+// Der Grund für die Stundenspalte: unter 24 h stehen die Tage noch auf 0,
+// die Stunden zeigen die Inaktivität aber bereits an.
+await db.exec("update players set points_unchanged_since = now() - interval '21 hours' where name = 'capy'");
+r = await db.query("select player_idle_days, player_idle_hours from inactive_farms where owner_name = 'capy'");
+ok(r.rows[0].player_idle_days === 0, 'nach 21 h sind es 0 Tage, got ' + r.rows[0].player_idle_days);
+ok(r.rows[0].player_idle_hours === 21, 'nach 21 h sind es 21 Stunden, got ' + r.rows[0].player_idle_hours);
+r = await db.query('select count(*)::int as n from inactive_farms where player_idle_hours >= 6');
+ok(r.rows[0].n >= 1, 'Filter auf Stunden findet den frischen Fall, got ' + r.rows[0].n);
+await db.exec("update players set points_unchanged_since = now() where name = 'capy'");
 
 r = await db.query("select * from inactive_farms where owner_name = 'Neuer'");
 ok(r.rows.length === 1 && r.rows[0].total_points === null, 'Planet ohne Spielereintrag bleibt sichtbar');
+
+// Beim ersten Import steht die Inaktivitätsuhr auf „jetzt", weil vorher
+// niemand hingesehen hat. Das darf nicht wie frische Aktivität aussehen.
+await db.exec("update players set first_seen_at = points_unchanged_since where name = 'capy'");
+r = await db.query("select idle_confirmed from inactive_farms where owner_name = 'capy'");
+ok(r.rows[0].idle_confirmed === false, 'ohne beobachtete Punkteänderung ist die Uhr unbelegt, got ' + r.rows[0].idle_confirmed);
+await db.exec("update players set first_seen_at = now() - interval '9 days' where name = 'capy'");
+r = await db.query("select idle_confirmed from inactive_farms where owner_name = 'capy'");
+ok(r.rows[0].idle_confirmed === true, 'nach einer gesehenen Änderung zählt die Uhr, got ' + r.rows[0].idle_confirmed);
 
 // ---------- Snapshots ----------
 r = await db.query('select count(*)::int as n from snapshots');
@@ -175,6 +195,78 @@ await db.query("select log_snapshot('farmberichte', 3, 3)");
 r = await db.query("select count(*)::int as n from snapshots where kind = 'farmberichte'");
 ok(r.rows[0].n === 1, 'Farmberichte dürfen protokolliert werden');
 
+// ---------- Farmliste (Roster) ----------
+out = await rpc('roster_add', [
+  { origin: '12:101:5', target: '12:43:9', player: 'Anakin' },
+  { origin: '12:101:5', target: '12:104:1', player: 'Heebads', note: 'nur nachts' },
+  { origin: '12:101:5', target: '12:43:9', player: 'Anakin' },   // Dublette im selben Aufruf
+  { origin: 'kaputt', target: '12:1:1' },                        // fliegt raus
+]);
+ok(out.changed === 2, 'zwei neue Farmen aufgenommen, got ' + JSON.stringify(out));
+r = await db.query('select count(*)::int as n from farm_roster');
+ok(r.rows[0].n === 2, 'nur gültige Koordinaten landen in der Liste, got ' + r.rows[0].n);
+
+// Nochmal aufnehmen darf die Uhr eines aktiven Ziels nicht zurücksetzen.
+await db.exec("update farm_roster set added_at = now() - interval '10 days'");
+out = await rpc('roster_add', [{ origin: '12:101:5', target: '12:43:9', player: 'Anakin' }]);
+ok(out.changed === 0, 'bekanntes aktives Ziel zählt nicht als neu, got ' + out.changed);
+r = await db.query("select days_listed from farm_roster_stats where target = '12:43:9'");
+ok(r.rows[0].days_listed === 10, 'added_at bleibt beim Doppelklick stehen, got ' + r.rows[0].days_listed);
+
+// Die Ertragsspalten kommen aus dem Beute-Archiv — aber nur von diesem Planeten.
+r = await db.query("select * from farm_roster_stats where origin = '12:101:5' and target = '12:43:9'");
+ok(r.rows[0].reports === 2, 'nur Angriffe von 12:101:5 auf 12:43:9 zählen, got ' + r.rows[0].reports);
+ok(Number(r.rows[0].total) === 228367 + 5000, 'Beute summiert, got ' + r.rows[0].total);
+ok(Number(r.rows[0].per_day) === Math.round((228367 + 5000) / 10), 'per_day über die Listenzeit, got ' + r.rows[0].per_day);
+ok(r.rows[0].hours_since_last != null, 'hours_since_last gesetzt');
+ok(r.rows[0].target_player === 'Anakin', 'Spielername am Ziel, got ' + r.rows[0].target_player);
+// Kennzahlen für die Karte: bester und letzter Flug, Rohstoffsplit.
+ok(Number(r.rows[0].best_total) === 228367, 'best_total ist der stärkste Flug, got ' + r.rows[0].best_total);
+ok(Number(r.rows[0].last_total) === 5000, 'last_total ist der jüngste Flug, got ' + r.rows[0].last_total);
+ok(Number(r.rows[0].iron) + Number(r.rows[0].lutinum) + Number(r.rows[0].water) + Number(r.rows[0].hydrogen)
+  === Number(r.rows[0].total), 'Rohstoffsummen ergeben die Gesamtbeute: ' + JSON.stringify(r.rows[0]));
+// Lifetime zählt alle Flüge auf dieses Ziel — auch die vor der Aufnahme.
+ok(r.rows[0].life_reports >= r.rows[0].reports && Number(r.rows[0].life_total) >= Number(r.rows[0].total),
+  'life_* deckt mindestens die Listenzeit ab: ' + JSON.stringify(r.rows[0]));
+ok(r.rows[0].life_last_at != null, 'life_last_at gesetzt');
+ok('idle_confirmed' in r.rows[0], 'idle_confirmed steht auch an der Farmliste');
+
+// Ein Ziel ohne jeden Angriff steht mit Nullen da, nicht mit NULL.
+r = await db.query("select * from farm_roster_stats where target = '12:104:1'");
+ok(r.rows[0].reports === 0 && Number(r.rows[0].total) === 0 && Number(r.rows[0].per_day) === 0,
+  'unbeflogene Farm zeigt Nullen: ' + JSON.stringify(r.rows[0]));
+ok(r.rows[0].slot_note === 'nur nachts', 'Notiz gespeichert, got ' + r.rows[0].slot_note);
+
+// Austauschen: raus mit dem tauben Ziel, rein mit einem neuen.
+out = await rpc('roster_remove', [{ origin: '12:101:5', target: '12:104:1', reason: 'kein Ertrag' }]);
+ok(out.changed === 1, 'Ziel abgelegt, got ' + JSON.stringify(out));
+r = await db.query("select active, drop_reason from farm_roster where target = '12:104:1'");
+ok(r.rows[0].active === false && r.rows[0].drop_reason === 'kein Ertrag', 'Grund bleibt erhalten');
+out = await rpc('roster_remove', [{ origin: '12:101:5', target: '12:104:1' }]);
+ok(out.changed === 0, 'zweimal ablegen ändert nichts mehr, got ' + out.changed);
+
+// Comeback: die Uhr startet neu, damit die alte Flaute nicht mitzählt.
+out = await rpc('roster_add', [{ origin: '12:101:5', target: '12:104:1' }]);
+ok(out.changed === 0, 'Wiederaufnahme ist keine neue Zeile, got ' + out.changed);
+r = await db.query("select active, removed_at, days_listed from farm_roster_stats where target = '12:104:1'");
+ok(r.rows[0].active === true && r.rows[0].removed_at === null && r.rows[0].days_listed === 0,
+  'Wiederaufnahme setzt die Uhr zurück: ' + JSON.stringify(r.rows[0]));
+
+// Kapazität je Planet.
+await db.query("select roster_set_slots('12:101:5', 6, 'zwei Kleine Transporter')");
+await db.query("select roster_set_slots('12:101:5', 9)");
+r = await db.query("select slots, note from farm_slots where origin = '12:101:5'");
+ok(r.rows[0].slots === 9 && r.rows[0].note === 'zwei Kleine Transporter',
+  'Slots überschrieben, Notiz bleibt: ' + JSON.stringify(r.rows[0]));
+threw = false;
+try { await db.query("select roster_set_slots('12:101:5', -1)"); } catch { threw = true; }
+ok(threw, 'negative Slotzahl wird abgelehnt');
+
+out = await rpc('roster_forget', [{ origin: '12:101:5', target: '12:104:1' }]);
+ok(out.changed === 1, 'endgültiges Vergessen entfernt die Zeile, got ' + out.changed);
+r = await db.query('select count(*)::int as n from farm_roster');
+ok(r.rows[0].n === 1, 'eine Farm bleibt übrig, got ' + r.rows[0].n);
+
 // ---------- Rechte ----------
 r = await db.query(`select has_table_privilege('anon', 'public.players', 'select') as anon_read,
                            has_table_privilege('authenticated', 'public.players', 'select') as auth_read,
@@ -203,7 +295,19 @@ ok(r.rows[0].auth_read === true, 'authenticated sieht das Beute-Archiv');
 ok(r.rows[0].auth_write === false, 'authenticated schreibt nur über die RPC');
 
 r = await db.query(`select relname from pg_class where relrowsecurity and relnamespace = 'public'::regnamespace order by relname`);
-ok(r.rows.length === 6, 'RLS auf allen sechs Tabellen, got ' + JSON.stringify(r.rows.map((x) => x.relname)));
+ok(r.rows.length === 8, 'RLS auf allen acht Tabellen, got ' + JSON.stringify(r.rows.map((x) => x.relname)));
+
+r = await db.query(`select has_table_privilege('anon', 'public.farm_roster', 'select') as anon_read,
+                           has_table_privilege('authenticated', 'public.farm_roster', 'select') as auth_read,
+                           has_table_privilege('authenticated', 'public.farm_roster', 'update') as auth_write,
+                           has_function_privilege('anon', 'public.roster_add(jsonb)', 'execute') as anon_add,
+                           has_function_privilege('authenticated', 'public.roster_add(jsonb)', 'execute') as auth_add,
+                           has_function_privilege('authenticated', 'public.roster_set_slots(text,int,text)', 'execute') as auth_slots`);
+ok(r.rows[0].anon_read === false, 'anon sieht die Farmliste nicht');
+ok(r.rows[0].auth_read === true, 'authenticated sieht die Farmliste');
+ok(r.rows[0].auth_write === false, 'die Farmliste wird nur über die RPC gepflegt');
+ok(r.rows[0].anon_add === false, 'anon darf nichts aufnehmen');
+ok(r.rows[0].auth_add === true && r.rows[0].auth_slots === true, 'authenticated pflegt die Farmliste');
 
 // ---------- Echte Pastes durch die echte Client-Abbildung ----------
 const { parsePlayerHighscore, parsePlanetHighscore } = await import('../src/parse/highscore.js');
