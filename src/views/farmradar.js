@@ -42,14 +42,13 @@ export function radarOrigins() {
 function configPanel() {
   const cfg = getConfig();
   const user = state.radar.user;
-  if (!isConfigured() || state.radar.editCfg) {
+  if (!isConfigured()) {
     return `<section class="panel">
       <div class="head"><h3>Supabase verbinden</h3><span class="hint">Projekt-URL und anon-Key aus Supabase → Settings → API. Beides bleibt nur in diesem Browser.</span></div>
       <div class="body">
-        <div class="row radar-cfg">
-          <input id="radarUrl" class="inp" type="url" placeholder="https://xxxx.supabase.co" value="${esc(cfg.url)}">
-          <input id="radarKey" class="inp" type="password" placeholder="anon public key" value="${esc(cfg.anonKey)}">
-          <button class="btn primary" id="btnRadarSaveCfg">Speichern</button>
+        <div class="row">
+          <button class="btn primary" id="btnRadarResetCfg">Projekt eintragen</button>
+          <span class="hint">Öffnet den Anmeldeschirm.</span>
         </div>
       </div>
     </section>`;
@@ -94,7 +93,7 @@ function importPanel() {
       <div class="row">
         <button class="btn primary" id="btnRadarPush"${pasted ? '' : ' disabled'}>${state.radar.busy === 'push' ? 'Übertrage …' : '↑ Nach Supabase übertragen'}</button>
         <button class="btn sm ghost" id="btnRadarLoad">${state.radar.busy === 'load' ? 'Lade …' : '⟳ Ziele neu laden'}</button>
-        ${hint ? `<span class="pill">${hint}</span>` : ''}
+        <span class="pill" id="radarPasteHint"${hint ? '' : ' hidden'}>${hint}</span>
       </div>
     </div>
   </section>`;

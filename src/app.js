@@ -29,6 +29,29 @@ if (!VIEWS[tab]) tab = 'lage';
 const alarmed = new Set();
 let authGate = null;
 
+/* ---------- Fokusschutz beim Rendern ---------- */
+/** Felder, bei denen ein Neubau die Tastatur schließen würde. */
+const TEXTFIELD = 'input:not([type=range]):not([type=checkbox]):not([type=radio]), textarea';
+let renderQueued = false;
+let flushT;
+
+/** Steht der Cursor gerade in einem Textfeld des Inhaltsbereichs? */
+function isTyping() {
+  const el = document.activeElement;
+  return !!el && typeof el.matches === 'function' && el.matches(TEXTFIELD) && $('#view').contains(el);
+}
+
+/**
+ * Aufgeschobenes Rendern nachholen, sobald das Feld verlassen wurde.
+ * Die kurze Verzögerung ist Absicht: Tippt man von einem Feld direkt auf
+ * einen Knopf, kommt erst der Klick — sonst wäre der Knopf schon neu
+ * gebaut und der Klick ginge ins Leere.
+ */
+function flushRender() {
+  clearTimeout(flushT);
+  flushT = setTimeout(() => { if (renderQueued) render(); }, 300);
+}
+
 /** Nach der Anmeldung: den gerade offenen Tab mit Serverdaten füllen. */
 function autoLoadTab() {
   if (tab === 'farmradar') radarAutoLoad();
@@ -37,12 +60,23 @@ function autoLoadTab() {
 }
 
 function render() {
+  // Ein Render baut #view komplett neu auf — das nimmt einem gerade
+  // bespielten Eingabefeld den Fokus, und auf dem Handy klappt damit
+  // sofort die Tastatur zu. Läuft gerade eine Eingabe, wird das Rendern
+  // deshalb aufgeschoben, bis das Feld verlassen wird.
+  if (isTyping()) { renderQueued = true; return; }
+  renderQueued = false;
+  clearTimeout(flushT);
+  // Nicht-Textfelder (Regler, Auswahllisten) dürfen den Fokus behalten:
+  // sie überleben den Neubau über ihre id.
+  const keepId = $('#view').contains(document.activeElement) ? document.activeElement.id : '';
   const fn = VIEWS[tab] || renderLage;
   $('#view').innerHTML = STANDALONE.has(tab)
     ? fn()
     : hasRequiredData()
     ? (tab === 'prognose' ? fn(forecastPlanet) : fn())
     : '<div class="empty">Füge zuerst die Übersichtsseite (HTML oder Text) und die Gesamtübersicht ein.</div>';
+  if (keepId) document.getElementById(keepId)?.focus({ preventScroll: true });
   document.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
   $('#importPanel').hidden = STANDALONE.has(tab) || (tab !== 'lage' && hasRequiredData());
   renderStatus();
@@ -153,15 +187,7 @@ async function radarPush() {
 }
 
 function radarClick(e) {
-  if (e.target.closest('#btnRadarSaveCfg')) {
-    const url = $('#radarUrl').value, key = $('#radarKey').value;
-    if (!url || !key) { toast('Bitte URL und anon-Key eintragen.', 'bad'); return true; }
-    sb.setConfig(url, key);
-    state.radar.editCfg = false;
-    radarAction('login', radarRefreshUser);
-    return true;
-  }
-  if (e.target.closest('#btnRadarResetCfg')) { state.radar.editCfg = true; render(); return true; }
+  if (e.target.closest('#btnRadarResetCfg')) { authGate?.open('', { advanced: true }); return true; }
   if (e.target.closest('#btnRadarOpenLogin')) { authGate?.open(); return true; }
   if (e.target.closest('#btnRadarLogout')) {
     radarAction('login', async () => {
@@ -236,9 +262,20 @@ function radarInput(e) {
   if (e.target.id !== 'inputHighscore') return false;
   state.radar.paste = e.target.value;
   clearTimeout(pasteTimer);
+  // Kein Neubau der View: Knopf und Hinweis werden direkt am DOM nachgezogen,
+  // damit Cursor und Tastatur im Feld bleiben.
   pasteTimer = setTimeout(() => {
-    const sig = state.radar.paste.trim() ? detectType(state.radar.paste) : 'leer';
-    if (sig !== pasteSig) { pasteSig = sig; render(); }
+    const text = state.radar.paste.trim();
+    pasteSig = text ? detectType(text) : 'leer';
+    const btn = $('#btnRadarPush');
+    if (btn) btn.disabled = !text;
+    const hint = $('#radarPasteHint');
+    if (!hint) return;
+    const label = pasteSig === 'highscore_spieler' ? '✔ Spieler-Highscore erkannt'
+      : pasteSig === 'highscore_planeten' ? '✔ Planeten-Highscore erkannt'
+      : text ? '⚠ keine Highscore-Liste erkannt' : '';
+    hint.textContent = label;
+    hint.hidden = !label;
   }, 200);
   return true;
 }
@@ -684,11 +721,19 @@ function init() {
   });
 
   // Gantt-Zeitachse hängt an der Fensterbreite (Marker mit/ohne Uhrzeit) -> neu rendern.
+  // Nur bei echter Breitenänderung: auf dem Handy löst schon das Aufklappen
+  // der Tastatur (oder die ein-/ausblendende Adressleiste) ein resize aus.
   let resizeT;
+  let lastWidth = window.innerWidth;
   window.addEventListener('resize', () => {
+    if (window.innerWidth === lastWidth) return;
+    lastWidth = window.innerWidth;
     clearTimeout(resizeT);
     resizeT = setTimeout(render, 150);
   });
+
+  // Verlässt der Nutzer ein Feld, wird ein aufgeschobenes Render nachgeholt.
+  $('#view').addEventListener('focusout', flushRender);
 
   setInterval(tick, 250);
   render();

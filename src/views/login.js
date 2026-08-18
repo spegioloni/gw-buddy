@@ -82,11 +82,12 @@ export function createAuthGate(host, { onSignedIn, onSkip } = {}) {
       : 'Noch kein Supabase-Projekt hinterlegt — trage es unten unter „Supabase-Projekt ändern" ein.';
   }
 
-  function open(reason) {
+  function open(reason, opts = {}) {
     fillConfig();
     email.value = state.radar.settings?.email || '';
     pass.value = '';
     say(reason || '', 'info');
+    $('#authAdv').open = !!opts.advanced || !sb.isConfigured();
     host.hidden = false;
     document.body.classList.add('authgate-open');
     // Autofokus nur am Desktop: auf dem Handy schiebt die Tastatur sonst

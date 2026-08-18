@@ -45,7 +45,6 @@ export const state = {
     busy: null,          // 'login' | 'load' | 'push' | null
     error: null,
     notice: null,
-    editCfg: false,      // Konfigurationsformular sichtbar?
     unpicked: new Set(), // vom Export abgewählte Ziele (Koordinaten)
     showAll: false,      // Zielliste vollständig zeigen statt nur der Spitze
   },
