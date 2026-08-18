@@ -233,7 +233,9 @@ textarea#inputFarmReports,textarea#inputHighscore{display:block;width:100%;min-h
 .eyebrow{font:600 10px var(--fontM);letter-spacing:.2em;color:var(--safe);text-transform:uppercase}
 .farm-count{display:flex;flex-direction:column;align-items:end;white-space:nowrap}.farm-count b{font-size:46px;line-height:.95;color:var(--safe)}.farm-count span{font-size:11px;color:var(--dim);margin-top:5px}
 .farm-import{border-color:color-mix(in srgb,var(--safe) 30%,var(--line))}.farm-signals{margin-top:16px}
-.farm-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+/* Beide Farm-Tabs stapeln ihre Sektionen: die Karten sollen die volle Breite
+   nutzen, sonst passen keine vier nebeneinander. */
+.farm-columns{display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
 .farm-list{display:flex;flex-direction:column;gap:7px}
 .farm-row{display:grid;grid-template-columns:50px minmax(170px,1fr) minmax(130px,.65fr) minmax(310px,1.25fr);align-items:center;gap:14px;padding:12px 14px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm)}
 .farm-row:hover{border-color:var(--safe)}.farm-row.stale{opacity:.78;border-style:dashed}
@@ -244,7 +246,6 @@ textarea#inputFarmReports,textarea#inputHighscore{display:block;width:100%;min-h
 .farm-loot{display:flex;flex-direction:column}.farm-loot b{font-size:18px;color:#fff}.farm-loot small{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
 .farm-res{display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;font-size:11.5px;color:var(--dim)}.farm-res span:first-letter{color:var(--safe);font-weight:700}
 .farm-more{margin-top:10px}
-@media (max-width:1100px){.farm-columns{grid-template-columns:1fr}}
 
 /* ---------- Farmradar ---------- */
 .inp{background:var(--bg);border:1px solid var(--line);border-radius:var(--r-sm);color:var(--ink);
@@ -268,8 +269,12 @@ textarea#inputFarmReports,textarea#inputHighscore{display:block;width:100%;min-h
 .farm-row.unpicked{opacity:.45}
 .farm-row.unpicked:hover{opacity:.8}
 /* Farmliste: jedes Ziel ist eine Karte mit den Zahlen, an denen sich
-   entscheidet, ob der Platz seinen Schiffsraum wert ist. */
-.farm-list.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:10px}
+   entscheidet, ob der Platz seinen Schiffsraum wert ist. Vier Karten je
+   Reihe über die volle Breite der Sektion; enger wird es stufenweise. */
+.farm-list.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:1400px){.farm-list.cards{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:1040px){.farm-list.cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:680px){.farm-list.cards{grid-template-columns:minmax(0,1fr)}}
 .farm-card{display:flex;flex-direction:column;gap:7px;align-items:flex-start;
   padding:13px 14px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm)}
 .farm-card:hover{border-color:var(--safe)}
@@ -766,6 +771,5 @@ details.fold .fbody{padding:0 15px 15px}
   .clock{font-size:18px}
   .farm-intro{align-items:flex-start;flex-direction:column}.farm-count{align-items:flex-start;flex-direction:row;gap:8px;align-items:baseline}
   .farm-count span{margin:0}.farm-row{grid-template-columns:38px 1fr;gap:9px}.farm-loot,.farm-res{grid-column:2}.farm-res{max-width:290px}
-  .farm-columns{grid-template-columns:1fr}
 }
 @media (max-width:520px){ .signals{grid-template-columns:1fr} }
