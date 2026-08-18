@@ -759,6 +759,44 @@ details.fold .fbody{padding:0 15px 15px}
 .filewarn code{font-family:'IBM Plex Mono',monospace;background:#1a2138;padding:1px 6px;border-radius:5px}
 .filewarn a{color:#c07cf7}
 
+/* ---------- Anmeldeschirm (Gate vor der App) ---------- */
+.authgate[hidden]{display:none}
+.authgate{position:fixed;inset:0;z-index:400;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  display:flex;align-items:center;justify-content:center;padding:24px 16px;
+  background:radial-gradient(120% 90% at 50% 0%,#1a2444 0%,transparent 60%),rgba(6,10,22,.97)}
+body.authgate-open{overflow:hidden}
+.authgate-card{width:100%;max-width:420px;background:var(--panel);border:1px solid var(--line2);
+  border-radius:var(--r);padding:24px 22px;box-shadow:0 24px 60px #0009}
+.authgate-brand{display:flex;align-items:center;gap:11px;margin-bottom:14px}
+.authgate-brand .logo{display:grid;place-items:center;width:38px;height:38px;border-radius:11px;
+  background:linear-gradient(135deg,var(--brand),var(--own));color:#0a0a12;font-size:20px}
+.authgate-brand b{display:block;font-family:var(--fontD);letter-spacing:.04em;font-size:15px}
+.authgate-brand small{color:var(--dim);font-size:11.5px}
+.authgate-lead{margin:0 0 18px;color:var(--dim);font-size:13px;line-height:1.5}
+.authgate-form{display:flex;flex-direction:column;gap:6px}
+.authgate-form label{font-size:12px;color:var(--dim);margin-top:8px}
+.authgate-form .inp{width:100%;font-size:16px;padding:12px 13px}
+.authgate-pass{display:flex;gap:8px;align-items:stretch}
+.authgate-pass .inp{flex:1}
+.authgate-pass .btn{flex:0 0 auto;padding:0 12px}
+.authgate-submit{justify-content:center;margin-top:16px;padding:13px 16px;font-size:15px}
+.authgate-submit:disabled{opacity:.6;cursor:progress}
+.authgate-skip{justify-content:center;width:100%;margin-top:10px;padding:11px;color:var(--dim)}
+.authgate-msg{margin:12px 0 0;padding:9px 11px;border-radius:var(--r-sm);font-size:12.5px;line-height:1.45;
+  background:color-mix(in srgb,var(--threat) 14%,transparent);border:1px solid var(--threat);color:var(--ink)}
+.authgate-msg[hidden]{display:none}
+.authgate-msg.ok{background:color-mix(in srgb,var(--safe) 14%,transparent);border-color:var(--safe)}
+.authgate-msg.info{background:var(--panel2);border-color:var(--line2);color:var(--dim)}
+.authgate-adv{margin-top:18px;border-top:1px solid var(--line);padding-top:12px}
+.authgate-adv summary{cursor:pointer;color:var(--dim);font-size:12.5px}
+.authgate-adv label{display:block;font-size:12px;color:var(--dim);margin:10px 0 5px}
+.authgate-adv .inp{width:100%;font-size:16px;padding:11px 12px}
+.authgate-adv .btn{margin-top:12px}
+@media (max-width:520px){
+  .authgate{align-items:flex-start;padding:16px 12px 32px}
+  .authgate-card{padding:20px 16px;border-radius:12px}
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width:1080px){ .signals{grid-template-columns:repeat(2,1fr)} }
 @media (max-width:820px){

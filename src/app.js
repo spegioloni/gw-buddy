@@ -10,6 +10,7 @@ import { renderPrognose } from './views/prognose.js';
 import { renderFarmen } from './views/farmen.js';
 import { renderFarmradar, radarOrigins, currentRanked, exportRows } from './views/farmradar.js';
 import { renderFarmliste, rosterOrigin, rosterView, slotsFor } from './views/farmliste.js';
+import { createAuthGate } from './views/login.js';
 import { flightOrder, rosterIndex } from './farmroster.js';
 import { coordParts, farmExportPairs, farmExportName } from './radar.js';
 import * as sb from './sync/supabase.js';
@@ -26,6 +27,14 @@ let tab = persist.getTab();
 let forecastPlanet = null;
 if (!VIEWS[tab]) tab = 'lage';
 const alarmed = new Set();
+let authGate = null;
+
+/** Nach der Anmeldung: den gerade offenen Tab mit Serverdaten füllen. */
+function autoLoadTab() {
+  if (tab === 'farmradar') radarAutoLoad();
+  else if (tab === 'farmliste') rosterAutoLoad();
+  else if (tab === 'farmen') lootAutoLoad();
+}
 
 function render() {
   const fn = VIEWS[tab] || renderLage;
@@ -153,16 +162,7 @@ function radarClick(e) {
     return true;
   }
   if (e.target.closest('#btnRadarResetCfg')) { state.radar.editCfg = true; render(); return true; }
-  if (e.target.closest('#btnRadarLogin')) {
-    const email = $('#radarEmail').value.trim(), pass = $('#radarPass').value;
-    persist.setRadar({ email });
-    radarAction('login', async () => {
-      await sb.signIn(email, pass);
-      await radarRefreshUser();
-      await radarLoad();
-    });
-    return true;
-  }
+  if (e.target.closest('#btnRadarOpenLogin')) { authGate?.open(); return true; }
   if (e.target.closest('#btnRadarLogout')) {
     radarAction('login', async () => {
       await sb.signOut();
@@ -170,6 +170,7 @@ function radarClick(e) {
       // Ohne Login ist das Archiv nicht mehr lesbar — sonst zeigte der
       // Farmatlas weiter Zahlen, die niemand mehr nachladen kann.
       state.loot.rows = []; state.loot.targets = []; state.loot.loadedAt = null;
+      authGate?.open('Abgemeldet.');
     });
     return true;
   }
@@ -691,9 +692,11 @@ function init() {
 
   setInterval(tick, 250);
   render();
-  if (tab === 'farmradar') radarAutoLoad();
-  if (tab === 'farmliste') rosterAutoLoad();
-  if (tab === 'farmen') lootAutoLoad();
+  authGate = createAuthGate(document.getElementById('authGate'), {
+    onSignedIn: (user) => { state.radar.user = user; render(); autoLoadTab(); },
+    onSkip: render,
+  });
+  authGate.start();
   // Hook für die Playwright-Rauchtests (test/*.mjs) — sonst ungenutzt.
   window.__gw = { state, render };
 }

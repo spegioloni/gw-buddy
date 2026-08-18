@@ -56,13 +56,12 @@ function configPanel() {
   }
   if (!user) {
     return `<section class="panel">
-      <div class="head"><h3>Anmelden</h3><span class="hint">${esc(cfg.url)}</span></div>
+      <div class="head"><h3>Nicht angemeldet</h3><span class="hint">${esc(cfg.url)}</span></div>
       <div class="body">
-        <div class="row radar-cfg">
-          <input id="radarEmail" class="inp" type="email" placeholder="E-Mail" value="${esc(state.radar.settings?.email || '')}">
-          <input id="radarPass" class="inp" type="password" placeholder="Passwort">
-          <button class="btn primary" id="btnRadarLogin">${state.radar.busy === 'login' ? 'Anmelden …' : 'Anmelden'}</button>
+        <div class="row">
+          <button class="btn primary" id="btnRadarOpenLogin">${state.radar.busy === 'login' ? 'Anmelden …' : '🔑 Anmelden'}</button>
           <button class="btn sm ghost" id="btnRadarResetCfg">Projekt wechseln</button>
+          <span class="hint">Ohne Anmeldung bleiben Farmradar, Farmliste und Beute-Archiv leer.</span>
         </div>
       </div>
     </section>`;
