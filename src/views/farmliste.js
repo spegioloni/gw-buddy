@@ -3,8 +3,9 @@
 // gegen ein besseres Ziel getauscht gehört. Geladen und geschrieben wird in
 // app.js; diese Datei rendert nur.
 import { state } from '../state.js';
-import { rankFarms, coordParts, formatIdle, attackIndex, farmExportName } from '../radar.js';
+import { rankFarms, coordParts, formatIdle, attackIndex, farmExportName, npcCandidates } from '../radar.js';
 import { rosterFor, suggestSwaps, resShare, trendOf, rosterIndex, avgPerFlight } from '../farmroster.js';
+import { reportsAsLootTargets } from '../parse/farmberichte.js';
 import { coordChip, esc, num, short } from '../util/time.js';
 import { emptyState, farmTargetCard } from './components.js';
 import { ownPlanetList } from './farmradar.js';
@@ -70,6 +71,25 @@ export function rosterCandidates(origin) {
     sameGalaxyOnly: s.sameGalaxyOnly,
     maxPoints: s.maxPoints,
     attacks: attackIndex(state.loot.targets),
+  });
+}
+
+/**
+ * Ziele aus Kampfberichten, die keine Highscore-Zeile haben — vor allem
+ * NPCs. Die Highscores kennen nur Spieler, das Beute-Archiv (oder ersatzweise
+ * die zuletzt eingefügten Berichte, solange noch nichts archiviert ist)
+ * kennt auch Ziele ohne Besitzereintrag.
+ */
+export function rosterNpcCandidates(origin) {
+  if (!coordParts(origin)) return [];
+  const s = state.radar.settings || {};
+  const targets = state.loot.targets.length ? state.loot.targets : reportsAsLootTargets(state.farmReports);
+  return npcCandidates(targets, {
+    radarRows: state.radar.rows,
+    own: [origin],
+    mine: ownPlanetList(),
+    maxSystems: s.maxSystems,
+    sameGalaxyOnly: s.sameGalaxyOnly,
   });
 }
 
@@ -262,6 +282,11 @@ export function renderFarmliste() {
   const candidates = rosterCandidates(origin);
   const swap = suggestSwaps(view, candidates);
   const listedBy = rosterIndex(state.roster.rows);
+  // NPCs & Co.: kein Highscore-Eintrag, aber im Beute-Archiv als Ziel
+  // bekannt. Was schon auf irgendeiner Liste steht (aktiv oder abgelegt),
+  // fliegt hier raus — sonst würde dieselbe Farm zweimal vorgeschlagen.
+  const known = new Set([...view.active, ...view.dropped].map((r) => r.target));
+  const npcOpen = rosterNpcCandidates(origin).filter((r) => !known.has(r.coord));
 
   const signals = `<div class="signals farm-signals">
     <div class="sig f"><div class="k">Belegte Plätze</div><div class="v">${view.active.length} / ${view.slots}</div><div class="sub">${view.over ? `${view.over} über der Kapazität` : `${view.free} frei`}</div></div>
@@ -296,6 +321,11 @@ export function renderFarmliste() {
         ? 'Keine neuen Ziele im Radarumkreis dieses Planeten. Umkreis im Farmradar vergrößern.'
         : 'Noch keine Radardaten geladen — im Farmradar „Ziele neu laden".')}</section>`;
 
+  const npcSection = `<section class="section"><h2>○ NPCs & unbekannte Ziele</h2>
+    <div class="desc">Ziele aus Kampfberichten ohne Highscore-Eintrag — meist NPC-Dörfer/-Stützpunkte. Sie tauchen im Farmradar nie auf, lassen sich hier aber trotzdem aufnehmen.</div>
+    ${npcOpen.length ? `<div class="farm-list cards">${npcOpen.map((r) => candidateRow(r, origin, listedBy)).join('')}</div>`
+      : emptyState('Keine NPC-Ziele im Umkreis dieses Planeten bekannt — dafür braucht es einen Kampfbericht gegen sie.')}</section>`;
+
   return head + msg + controls(origin, view) + signals + actions
-    + `<div class="farm-columns">${listSection}${suggestSection}</div>`;
+    + `<div class="farm-columns">${listSection}${suggestSection}${npcSection}</div>`;
 }

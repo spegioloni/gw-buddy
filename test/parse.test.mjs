@@ -6,7 +6,7 @@ import { detectType } from '../src/parse/detect.js';
 import { parseGesamt } from '../src/parse/gesamt.js';
 import { parseUebersicht } from '../src/parse/uebersicht.js';
 import { parseHtmlOverview } from '../src/parse/html.js';
-import { parseFarmReports, farmSummary } from '../src/parse/farmberichte.js';
+import { parseFarmReports, farmSummary, reportsAsLootTargets } from '../src/parse/farmberichte.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const read = (f) => readFileSync(path.join(ROOT, 'fixtures', f), 'utf8');
@@ -224,6 +224,16 @@ ok(!!handel && handel.ziel === '12:101:5', 'Handel-Flotte Ziel 12:101:5, got ' +
     ok(farms.farms.length === 2, 'Farmen nach Ziel verdichtet, got ' + farms.farms.length);
     ok(farms.attackedToday.length === 1 && farms.notAttackedToday.length === 1,
       'heute angegriffen/offen korrekt getrennt');
+
+    // Solange das Beute-Archiv noch nichts kennt, sollen sich die frisch
+    // eingefügten Berichte wie Archivzeilen verhalten (für die NPC-Suche).
+    const lootLike = reportsAsLootTargets(reports);
+    ok(lootLike.length === 2, 'zwei Ziele verdichtet, got ' + lootLike.length);
+    const anakin = lootLike.find((t) => t.target === '12:43:9');
+    ok(anakin.reports === 2, 'beide Berichte an dieses Ziel gezählt, got ' + anakin.reports);
+    ok(anakin.total === 309367, 'Summe beider Berichte, got ' + anakin.total);
+    ok(anakin.last_total === 228367, 'jüngster Bericht als last_total, got ' + anakin.last_total);
+    ok(anakin.target_player === '_**Anakin**_', 'Spielername übernommen');
   }
 
 console.log(`\n${fail === 0 ? '✅' : '❌'}  ${pass} ok, ${fail} fehlgeschlagen`);

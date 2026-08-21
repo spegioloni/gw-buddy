@@ -71,6 +71,37 @@ export function parseFarmReports(text, reference = new Date()) {
   return reports;
 }
 
+/**
+ * Berichte in die Form der Archiv-View `farm_loot_targets` bringen — damit
+ * Funktionen, die eigentlich fürs Beute-Archiv gebaut sind (etwa
+ * `npcCandidates`), auch mit frisch eingefügten, noch nicht archivierten
+ * Berichten arbeiten können.
+ */
+export function reportsAsLootTargets(reports) {
+  const byTarget = new Map();
+  for (const r of reports || []) {
+    const list = byTarget.get(r.target) || [];
+    list.push(r);
+    byTarget.set(r.target, list);
+  }
+  return [...byTarget.entries()].map(([target, list]) => {
+    const sorted = [...list].sort((a, b) => (b.at ?? -Infinity) - (a.at ?? -Infinity));
+    const latest = sorted[0];
+    const total = list.reduce((sum, r) => sum + r.total, 0);
+    const best = Math.max(...list.map((r) => r.total));
+    return {
+      target,
+      target_player: latest.player,
+      reports: list.length,
+      total,
+      avg_total: Math.round(total / list.length),
+      best_total: best,
+      last_total: latest.total,
+      last_at: latest.at ? new Date(latest.at).toISOString() : null,
+    };
+  });
+}
+
 export function farmSummary(reports, reference = new Date()) {
   const todayStart = new Date(reference.getFullYear(), reference.getMonth(), reference.getDate()).getTime();
   const farms = new Map();

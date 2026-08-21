@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { detectType } from '../src/parse/detect.js';
 import { parsePlayerHighscore, parsePlanetHighscore, splitPlayerName } from '../src/parse/highscore.js';
-import { distance, nearestOwn, rankFarms, coordParts, formatIdle, attackIndex, dayStart, farmExportPairs, farmExportName } from '../src/radar.js';
+import { distance, nearestOwn, rankFarms, coordParts, formatIdle, attackIndex, dayStart, farmExportPairs, farmExportName, npcCandidates } from '../src/radar.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const read = (f) => readFileSync(path.join(ROOT, 'fixtures', f), 'utf8');
@@ -183,6 +183,27 @@ const stamp = new Date(2026, 7, 18);
 ok(farmExportName('', stamp) === 'Farmen-18-08-2026.json', 'Dateiname, got ' + farmExportName('', stamp));
 ok(farmExportName('12:101:5', stamp) === 'Farmen-12_101_5-18-08-2026.json',
   'Dateiname je Planet, got ' + farmExportName('12:101:5', stamp));
+
+// ---------- NPCs & Kampfbericht-Ziele ohne Highscore-Eintrag ----------
+const radarRows = [
+  { owner_name: 'Schlaefer', galaxy: 12, system: 104, position: 3, points: 2000 },
+];
+const npcOpts = { radarRows, own: ['12:101:5'], maxSystems: 20, sameGalaxyOnly: true };
+
+const npcTargets = [
+  { target: '12:104:3', target_player: 'Schlaefer', reports: 2, total: 1000, avg_total: 500, last_at: heuteFrueh }, // im Highscore bekannt -> kein NPC
+  { target: '12:106:2', target_player: 'NPC-Dorf', reports: 3, total: 9000, avg_total: 3000, best_total: 4000, last_total: 3500, last_at: heuteFrueh },
+  { target: '12:190:1', target_player: 'ZuWeit', reports: 1, total: 100, avg_total: 100, last_at: heuteFrueh },
+  { target: 'kaputt', target_player: 'Nix', reports: 1, total: 1 },
+];
+const npcs = npcCandidates(npcTargets, npcOpts);
+ok(npcs.length === 1, 'nur das unbekannte, erreichbare Ziel bleibt, got ' + npcs.length);
+ok(npcs[0].coord === '12:106:2', 'richtiges Ziel, got ' + npcs[0].coord);
+ok(npcs[0].owner_name === 'NPC-Dorf', 'Name aus dem Bericht übernommen');
+ok(npcs[0].attack.reports === 3 && npcs[0].attack.avg === 3000, 'Angriffszahlen übernommen');
+ok(npcs[0].points === 0, 'keine Highscore-Punkte bekannt');
+ok(npcCandidates(npcTargets, { ...npcOpts, own: [] }).length === 0, 'ohne Bezugspunkt kein Ergebnis');
+ok(npcCandidates([], npcOpts).length === 0, 'ohne Ziele leeres Ergebnis');
 
 console.log(`\n${pass} ok, ${fail} fehlgeschlagen`);
 process.exit(fail ? 1 : 0);

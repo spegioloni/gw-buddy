@@ -149,6 +149,76 @@ export function rankFarms(rows, opts = {}) {
 }
 
 /**
+ * Ziele aus Kampfberichten, die in der Highscore-Liste gar nicht auftauchen
+ * — allen voran NPC-Dörfer/-Stützpunkte: sie gehören keinem Spieler und
+ * bleiben deshalb im `inactive_farms`-Radar unsichtbar, obwohl das
+ * Beute-Archiv sie längst als lohnendes Ziel kennt.
+ *
+ * @param targets  Zeilen aus dem Beute-Archiv (View `farm_loot_targets`
+ *                 oder die gleichwertige Form aus den eingefügten Berichten)
+ * @param opts     {radarRows, own:string[], mine:string[], maxSystems,
+ *                  sameGalaxyOnly}
+ */
+export function npcCandidates(targets, opts = {}) {
+  const {
+    radarRows = [], own = [], mine = own,
+    maxSystems = 20, sameGalaxyOnly = true,
+  } = opts;
+  // Alles, was die Highscore-Liste schon als Koordinate kennt, ist per
+  // Definition kein „unbekanntes" Ziel mehr — egal ob aktiv, inaktiv oder
+  // eigen.
+  const known = new Set((radarRows || [])
+    .filter((r) => r && r.galaxy != null)
+    .map((r) => `${r.galaxy}:${r.system}:${r.position}`));
+  const ownParts = own.map(coordParts).filter(Boolean);
+  const ownCoords = new Set(mine.map((c) => String(c).trim()).filter(Boolean));
+  const out = [];
+
+  for (const t of targets || []) {
+    const coord = String(t?.target || '').trim();
+    const parts = coordParts(coord);
+    if (!parts) continue;
+    if (known.has(coord) || ownCoords.has(coord)) continue;
+
+    const candidates = sameGalaxyOnly
+      ? ownParts.filter((o) => o.galaxy === parts.galaxy)
+      : ownParts;
+    if (!candidates.length) continue;
+
+    const near = nearestOwn(parts, candidates);
+    const systemGap = Math.min(...candidates
+      .filter((o) => o.galaxy === parts.galaxy)
+      .map((o) => Math.abs(o.system - parts.system)), Infinity);
+    if (sameGalaxyOnly && systemGap > maxSystems) continue;
+    if (!sameGalaxyOnly && near.distance > maxSystems) continue;
+
+    const reports = Number(t.reports || 0);
+    const total = Number(t.total || 0);
+    const avg = t.avg_total != null ? Number(t.avg_total) : (reports ? Math.round(total / reports) : 0);
+    out.push({
+      coord,
+      owner_name: t.target_player || 'NPC',
+      points: 0,
+      nearestOwn: near.coord ? `${near.coord.galaxy}:${near.coord.system}:${near.coord.position}` : null,
+      distance: near.distance,
+      systemGap: Number.isFinite(systemGap) ? systemGap : null,
+      npc: true,
+      attack: {
+        reports, total, avg,
+        best: Number(t.best_total || 0),
+        last: Number(t.last_total || 0),
+        lastAt: t.last_at ? Date.parse(t.last_at) : null,
+      },
+      attackedToday: false,
+      score: avg,
+    });
+  }
+
+  out.sort((a, b) => b.attack.avg - a.attack.avg || b.attack.total - a.attack.total);
+  return out;
+}
+
+/**
  * Farmenliste fürs JSON: [["12:68:5","Manor"], …] in Universumsreihenfolge
  * (Galaxie, System, Position, Name). Doppelte Paare fallen raus, Zeilen ohne
  * brauchbare Koordinate ebenfalls. Namen bleiben so stehen, wie sie im
