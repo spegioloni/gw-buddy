@@ -78,6 +78,13 @@ create table if not exists public.farm_reports (
 );
 create index if not exists farm_reports_at_idx     on public.farm_reports (attacked_at desc);
 create index if not exists farm_reports_target_idx on public.farm_reports (target);
+-- Composite Indizes für den "letzter Angriff je Ziel"-Zugriff: ohne sie
+-- müsste jede Auswertung ALLE Berichte eines Ziels sortieren, um den
+-- jüngsten herauszupicken (array_agg(... order by)). Mit Index reicht ein
+-- Indexscan mit LIMIT 1 — das bleibt schnell, egal wie viele Berichte sich
+-- über die Zeit ansammeln.
+create index if not exists farm_reports_target_at_idx        on public.farm_reports (target, attacked_at desc);
+create index if not exists farm_reports_origin_target_at_idx on public.farm_reports (origin, target, attacked_at desc);
 
 create table if not exists public.snapshots (
   id            bigserial primary key,
@@ -194,29 +201,47 @@ group by 1, 2;
 -- Ertrag je Farm über die gesamte Zeit, plus der jeweils jüngste Angriff.
 -- Damit weiß der Farmatlas auch für Ziele Bescheid, die im gerade
 -- eingefügten Berichtsblatt gar nicht mehr auftauchen.
+-- `array_agg(... order by attacked_at desc)` musste früher pro Ziel ALLE
+-- Berichte sortieren, nur um den jüngsten herauszupicken — bei Tausenden
+-- archivierter Angriffe wurde das mit der Zeit so teuer, dass die Seite
+-- gar nicht mehr aufging. Die LATERAL-Zeile holt den letzten Bericht je
+-- Ziel stattdessen per Index + LIMIT 1, ohne die Gruppe zu sortieren.
 create or replace view public.farm_loot_targets
 with (security_invoker = on) as
 select
-  target,
-  (array_agg(target_player order by attacked_at desc))[1] as target_player,
-  sum(iron)::bigint     as iron,
-  sum(lutinum)::bigint  as lutinum,
-  sum(water)::bigint    as water,
-  sum(hydrogen)::bigint as hydrogen,
-  sum(total)::bigint    as total,
-  count(*)::int         as reports,
-  round(avg(total))::bigint as avg_total,
-  max(total)::bigint    as best_total,
-  min(attacked_at)      as first_at,
-  max(attacked_at)      as last_at,
-  (array_agg(origin   order by attacked_at desc))[1]         as last_origin,
-  (array_agg(total    order by attacked_at desc))[1]::bigint as last_total,
-  (array_agg(iron     order by attacked_at desc))[1]::bigint as last_iron,
-  (array_agg(lutinum  order by attacked_at desc))[1]::bigint as last_lutinum,
-  (array_agg(water    order by attacked_at desc))[1]::bigint as last_water,
-  (array_agg(hydrogen order by attacked_at desc))[1]::bigint as last_hydrogen
-from public.farm_reports
-group by target;
+  agg.target,
+  last.target_player,
+  agg.iron, agg.lutinum, agg.water, agg.hydrogen, agg.total, agg.reports,
+  agg.avg_total, agg.best_total, agg.first_at, agg.last_at,
+  last.origin  as last_origin,
+  last.total   as last_total,
+  last.iron    as last_iron,
+  last.lutinum as last_lutinum,
+  last.water   as last_water,
+  last.hydrogen as last_hydrogen
+from (
+  select
+    target,
+    sum(iron)::bigint     as iron,
+    sum(lutinum)::bigint  as lutinum,
+    sum(water)::bigint    as water,
+    sum(hydrogen)::bigint as hydrogen,
+    sum(total)::bigint    as total,
+    count(*)::int         as reports,
+    round(avg(total))::bigint as avg_total,
+    max(total)::bigint    as best_total,
+    min(attacked_at)      as first_at,
+    max(attacked_at)      as last_at
+  from public.farm_reports
+  group by target
+) agg
+join lateral (
+  select fr.target_player, fr.origin, fr.total, fr.iron, fr.lutinum, fr.water, fr.hydrogen
+  from public.farm_reports fr
+  where fr.target = agg.target
+  order by fr.attacked_at desc
+  limit 1
+) last on true;
 
 -- Die Farmliste mit allem, was für ein Austauschen nötig ist: was das Ziel
 -- seit der Aufnahme wirklich abgeworfen hat (nur Angriffe von genau diesem
@@ -239,7 +264,7 @@ select
   coalesce(s.total, 0)::bigint                            as total,
   coalesce(s.avg_total, 0)::bigint                        as avg_total,
   coalesce(s.best_total, 0)::bigint                       as best_total,
-  coalesce(s.last_total, 0)::bigint                       as last_total,
+  coalesce(s_last.last_total, 0)::bigint                  as last_total,
   coalesce(s.iron, 0)::bigint                             as iron,
   coalesce(s.lutinum, 0)::bigint                          as lutinum,
   coalesce(s.water, 0)::bigint                            as water,
@@ -258,7 +283,7 @@ select
   coalesce(l.total, 0)::bigint                            as life_total,
   coalesce(l.avg_total, 0)::bigint                        as life_avg,
   coalesce(l.best_total, 0)::bigint                       as life_best,
-  coalesce(l.last_total, 0)::bigint                       as life_last,
+  coalesce(l_last.last_total, 0)::bigint                  as life_last,
   l.last_at                                               as life_last_at,
   pl.points                                               as planet_points,
   floor(extract(epoch from now() - coalesce(p.points_unchanged_since, pl.points_unchanged_since)) / 3600)::int as player_idle_hours,
@@ -279,7 +304,6 @@ left join lateral (
          sum(fr.total)            as total,
          round(avg(fr.total))     as avg_total,
          max(fr.total)            as best_total,
-         (array_agg(fr.total order by fr.attacked_at desc))[1] as last_total,
          sum(fr.iron)             as iron,
          sum(fr.lutinum)          as lutinum,
          sum(fr.water)            as water,
@@ -290,16 +314,34 @@ left join lateral (
   where fr.origin = r.origin and fr.target = r.target
     and fr.attacked_at >= r.added_at
 ) s on true
+-- Letzter Angriff dieses Planeten auf dieses Ziel, per Index + LIMIT 1 statt
+-- array_agg(order by) über die ganze (gefilterte) Gruppe.
+left join lateral (
+  select fr.total as last_total
+  from public.farm_reports fr
+  where fr.origin = r.origin and fr.target = r.target
+    and fr.attacked_at >= r.added_at
+  order by fr.attacked_at desc
+  limit 1
+) s_last on true
 left join lateral (
   select count(*)::int        as reports,
          sum(fr.total)        as total,
          round(avg(fr.total)) as avg_total,
          max(fr.total)        as best_total,
-         (array_agg(fr.total order by fr.attacked_at desc))[1] as last_total,
          max(fr.attacked_at)  as last_at
   from public.farm_reports fr
   where fr.target = r.target
-) l on true;
+) l on true
+-- Jüngster Angriff irgendeines Planeten auf dieses Ziel (Lifetime-Sicht),
+-- wieder per Index + LIMIT 1 statt array_agg(order by).
+left join lateral (
+  select fr.total as last_total
+  from public.farm_reports fr
+  where fr.target = r.target
+  order by fr.attacked_at desc
+  limit 1
+) l_last on true;
 
 -- ======================================================== RPC: Import ====
 

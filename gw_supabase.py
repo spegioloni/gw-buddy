@@ -21,6 +21,10 @@ Sicherheit
 * Zugangsdaten stehen NICHT im Code. Sie kommen aus den Umgebungsvariablen
   GW_SUPABASE_EMAIL / GW_SUPABASE_PASSWORD oder werden abgefragt.
 
+Zugangsdaten koennen auch bequem in einer ".env"-Datei im Projektordner
+liegen (siehe .env.example). Diese Datei ist in .gitignore eingetragen und
+wird beim Start automatisch eingelesen.
+
 Nur Standardbibliothek - keine zusaetzlichen Pakete noetig.
 """
 
@@ -35,6 +39,32 @@ import urllib.request
 # ---------------------------------------------------------------------------
 # Konfiguration
 # ---------------------------------------------------------------------------
+
+ENV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+
+
+def _load_dotenv(path=ENV_FILE):
+    """Liest KEY=VALUE-Zeilen aus einer .env-Datei in os.environ ein.
+
+    Bereits gesetzte Umgebungsvariablen haben Vorrang und werden nicht
+    ueberschrieben. Fehlt die Datei, passiert einfach nichts."""
+    try:
+        with open(path, encoding="utf-8") as handle:
+            lines = handle.readlines()
+    except OSError:
+        return
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_dotenv()
 
 # Quelle fuer Projekt-URL und anon-Key: die Weboberflaeche. So gibt es nur
 # EINE Stelle, an der die Projektdaten gepflegt werden.

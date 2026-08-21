@@ -13,3 +13,6 @@ browser_copies_*.txt
 highscore_player_*.txt
 highscore_planet_*.txt
 __pycache__/
+
+# Zugangsdaten (Supabase Login etc.) - niemals committen
+.env
